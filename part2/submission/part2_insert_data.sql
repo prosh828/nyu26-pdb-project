@@ -12,8 +12,8 @@
 --   c. at least three customers         -> 6 regular users (alice ... frank)
 --   d. at least three airplanes         -> 20 movies (real titles, TMDB ids)
 --   e. one airline staff member         -> 1 admin user
---   f. flights with on-time / delayed   -> view events, finished and
---      statuses                            unfinished (progress < 100)
+--   f. flights with on-time / delayed   -> view events: finished (progress
+--      statuses                            >= 90) or still in progress (< 90)
 --   g. tickets and purchase records     -> 56 ratings, watchlist entries
 --                                          and stored recommendation lists
 
