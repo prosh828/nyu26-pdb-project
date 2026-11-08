@@ -68,9 +68,9 @@ INSERT INTO movie_genres (movie_id, genre_id) VALUES
 -- ---------------------------------------------------------------------
 INSERT INTO user_genres (user_id, genre_id) VALUES
  (2,1),(2,6),(2,4),        -- alice: Action, Sci-Fi, Drama
- (3,6),(3,4),              -- bob:   Sci-Fi, Drama
- (4,2),(4,3),              -- carol: Animation, Comedy
- (5,4),(5,5),              -- david: Drama, Romance
+ (3,6),(3,4),(3,1),        -- bob:   Sci-Fi, Drama, Action
+ (4,2),(4,3),(4,5),        -- carol: Animation, Comedy, Romance
+ (5,4),(5,5),(5,2),        -- david: Drama, Romance, Animation
  (6,1),(6,4),(6,3),        -- eve:   Action, Drama, Comedy
  (7,2),(7,3),(7,5);        -- frank: Animation, Comedy, Romance (no history)
 

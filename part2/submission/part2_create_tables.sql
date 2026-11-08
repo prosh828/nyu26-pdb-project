@@ -196,6 +196,15 @@ CREATE TABLE recommendations (
     INDEX rec_seed_idx (seed_movie_id),
     CONSTRAINT rec_strategy_chk CHECK (strategy IN ('popular', 'genre', 'item_cf')),
     CONSTRAINT rec_rank_chk     CHECK (rec_rank >= 1),
+    -- A seed movie exists exactly when the list is "Because you liked X".
+    CONSTRAINT rec_seed_strategy_chk
+        CHECK ((strategy = 'item_cf') = (seed_movie_id IS NOT NULL)),
+    -- "Because you liked X" never recommends X itself.
+    CONSTRAINT rec_seed_self_chk
+        CHECK (seed_movie_id IS NULL OR seed_movie_id <> movie_id),
+    -- A row cannot be shown before its list was generated.
+    CONSTRAINT rec_shown_chk
+        CHECK (shown_at IS NULL OR shown_at >= generated_at),
     CONSTRAINT rec_user_fk  FOREIGN KEY (user_id)  REFERENCES users (user_id)
         ON DELETE CASCADE,
     CONSTRAINT rec_movie_fk FOREIGN KEY (movie_id) REFERENCES movies (movie_id)

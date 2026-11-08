@@ -103,7 +103,7 @@ The data set is small on purpose, with every corner case the queries must handle
 | genres          |  6 |
 | movies          | 20 |
 | movie_genres    | 35 |
-| user_genres     | 15 |
+| user_genres     | 18 |
 | ratings         | 56 |
 | view_events     | 19 |
 | watchlist       |  3 |
