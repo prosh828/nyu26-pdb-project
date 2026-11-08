@@ -8,16 +8,17 @@
 
 **Recco** is a movie recommendation web application. Users rate and review movies, keep a watchlist, hide titles they are not interested in, continue watching where they left off, and receive ranked recommendations. Administrators manage the catalogue and refresh the recommendations.
 
-This document covers Part 2: the relational schema derived from the Part 1 ER model, the table definitions in SQL, a hand-crafted sample data set and 11 queries with their results. Everything targets **MySQL 8.0** and was run on MySQL 8.0.46 with the default strict SQL mode.
+This document covers Part 2: the relational schema derived from the Part 1 ER model, the table definitions in SQL, a hand-crafted sample data set, and four basic listings plus 11 queries with their results. Everything targets **MySQL 8.0** and was run on MySQL 8.0.46 with the default strict SQL mode.
 
 | File | Purpose |
 | --- | --- |
+| submission/ | The four files submitted on Gradescope: schema PDF, CREATE TABLE, INSERT, queries with results |
 | sql/01_schema.sql | DDL: 10 tables, keys, constraints, indexes |
 | sql/02_sample_data.sql | Hand-crafted sample data |
 | sql/03_queries.sql | The 11 queries as the application sends them (%(name)s placeholders) |
 | sql/04_test_queries.sql | The same queries with concrete values, used for the results below |
 | results/test_results.txt | Full output of running 04_test_queries.sql |
-| diagrams/ | ER diagram and relational schema diagram (draw.io source and PNG) |
+| diagrams/ | ER diagram and relational schema diagrams, textbook and crow's foot (draw.io source and PNG) |
 
 # 2. From the ER model to tables
 
@@ -60,9 +61,9 @@ A many-to-one relationship does not need a table of its own: the foreign key on 
 - hidden\_movies (**user\_id** → users, **movie\_id** → movies, hidden\_at)
 - recommendations (**rec\_id**, user\_id → users, movie\_id → movies, strategy, seed\_movie\_id → movies, rec\_rank, score, generated\_at, shown\_at, seed\_key)
 
-![Relational schema diagram (crow's foot notation; full size: diagrams/relational_schema_crowsfoot.png)](../diagrams/relational_schema_crowsfoot.png){width=6.8in}
+![Relational schema diagram: primary keys underlined, each arrow a foreign key (the submitted PDF; full size: diagrams/relational_schema.png)](../diagrams/relational_schema.png){width=6.4in}
 
-In the diagram, UK\* marks the columns of the two composite UNIQUE keys of a recommendation list: one row per rank, and one row per movie, in each list. In movies, title and release\_year form one composite UNIQUE key, and tmdb\_id is unique on its own.
+A crow's foot version with column types is in diagrams/relational_schema_crowsfoot.png. In it, UK\* marks the columns of the two composite UNIQUE keys of a recommendation list: one row per rank, and one row per movie, in each list. In movies, title and release\_year form one composite UNIQUE key, and tmdb\_id is unique on its own.
 
 # 4. Table definitions
 
@@ -79,13 +80,14 @@ The full DDL is in sql/01_schema.sql and reproduced in Appendix A. The script dr
 | view\_events | event\_id (BIGINT AUTO\_INCREMENT) | progress 0–100; indexes (user\_id, viewed\_at), (movie\_id, viewed\_at) |
 | watchlist | (user\_id, movie\_id) | CASCADE on both |
 | hidden\_movies | (user\_id, movie\_id) | CASCADE on both |
-| recommendations | rec\_id (BIGINT AUTO\_INCREMENT) | strategy IN ('popular','genre','item\_cf'); rec\_rank ≥ 1; two UNIQUE keys per list; index (user\_id, shown\_at) |
+| recommendations | rec\_id (BIGINT AUTO\_INCREMENT) | strategy IN ('popular','genre','item\_cf'); rec\_rank ≥ 1; seed\_movie\_id set only for item\_cf and never equal to movie\_id; shown\_at ≥ generated\_at; two UNIQUE keys per list; index (user\_id, shown\_at) |
 
 **Constraint choices**
 
 - **Half-star scale in the database.** CHECK (score BETWEEN 0.5 AND 5.0 AND score \* 2 = FLOOR(score \* 2)) accepts 3.5 and rejects 4.3, whatever the application sends.
 - **ON DELETE CASCADE** on every interaction table, so removing a user or a movie cleans up its ratings, views, watchlist entries, hides and recommendations.
 - **ON DELETE RESTRICT** from movie\_genres to genres: a genre still used by a movie cannot be deleted.
+- **Recommendation rows are checked too.** CHECKs make seed\_movie\_id present exactly when strategy = 'item\_cf', stop a "Because you liked X" list from recommending X itself, and reject a shown\_at earlier than generated\_at.
 - **seed\_movie\_id cascades too:** a "Because you liked X" list is deleted with X, since it means nothing without it.
 - **Indexes follow the queries:** (movie\_id, score) for the collaborative self-join, (movie\_id, viewed\_at) for trending, and (user\_id, shown\_at) for the 24-hour rule.
 
@@ -121,11 +123,122 @@ The data set is small on purpose, with every corner case the queries must handle
 - **Exclusions:** alice finished Jurassic Park and hid Mad Max: Fury Road, so neither may be recommended to her (Q6, Q7).
 - **24-hour rule:** The Godfather was shown to alice 3 hours ago, so it is held back. Pulp Fiction was shown 2 days ago, so it is allowed again (Q6, Q7).
 - **Cold start:** frank has no ratings, only favourite genres (Q6).
+- **Three favourite genres:** every regular user has exactly three, as sign-up requires (Q1).
 - **Roles:** user 1 is an admin, and everyone else is a regular user (Q10).
 
 # 6. Queries and results
 
 Each query below is the application version from sql/03_queries.sql. The results come from running sql/04_test_queries.sql, which uses the same queries with concrete values, top to bottom on a fresh load of the schema and sample data. The statements marked "expected error" are meant to fail: they show a constraint at work.
+
+## 6.0 Basic listings (the spec's example queries 4a–4d)
+
+The spec's examples list future flights, delayed flights, customers who bought tickets and Jet Blue's airplanes. These are Recco's counterparts, run first on the freshly loaded data.
+
+**4a.** All movies in the system, with their genres
+
+```sql
+SELECT m.movie_id, m.title, m.release_year, m.runtime,
+       GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR ', ') AS genres
+FROM   movies m
+JOIN   movie_genres mg ON mg.movie_id = m.movie_id
+JOIN   genres g        ON g.genre_id  = mg.genre_id
+GROUP  BY m.movie_id, m.title, m.release_year, m.runtime
+ORDER  BY m.movie_id;
+```
+
+```text
++----------+--------------------+--------------+---------+------------------------+
+| movie_id | title              | release_year | runtime | genres                 |
++----------+--------------------+--------------+---------+------------------------+
+| 1        | Toy Story          | 1995         | 81      | Animation, Comedy      |
+| 2        | Finding Nemo       | 2003         | 100     | Animation, Comedy      |
+| 3        | Shrek              | 2001         | 90      | Animation, Comedy      |
+| 4        | Up                 | 2009         | 96      | Animation, Drama       |
+| 5        | Spirited Away      | 2001         | 125     | Animation              |
+| 6        | The Matrix         | 1999         | 136     | Action, Sci-Fi         |
+| 7        | Inception          | 2010         | 148     | Action, Sci-Fi         |
+| 8        | Interstellar       | 2014         | 169     | Drama, Sci-Fi          |
+| 9        | The Dark Knight    | 2008         | 152     | Action, Drama          |
+| 10       | Mad Max: Fury Road | 2015         | 120     | Action, Sci-Fi         |
+| 11       | Jurassic Park      | 1993         | 127     | Action, Sci-Fi         |
+| 12       | Titanic            | 1997         | 194     | Drama, Romance         |
+| 13       | The Notebook       | 2004         | 123     | Drama, Romance         |
+| 14       | La La Land         | 2016         | 128     | Comedy, Romance        |
+| 15       | Forrest Gump       | 1994         | 142     | Comedy, Drama, Romance |
+| 16       | The Godfather      | 1972         | 175     | Drama                  |
+| 17       | Pulp Fiction       | 1994         | 154     | Drama                  |
+| 18       | Parasite           | 2019         | 132     | Drama                  |
+| 19       | Superbad           | 2007         | 113     | Comedy                 |
+| 20       | The Hangover       | 2009         | 100     | Comedy                 |
++----------+--------------------+--------------+---------+------------------------+
+20 row(s)
+```
+
+**4b.** Movies a user has hidden (a per-user status, like "delayed")
+
+```sql
+SELECT u.username, m.title, h.hidden_at
+FROM   hidden_movies h
+JOIN   users  u ON u.user_id  = h.user_id
+JOIN   movies m ON m.movie_id = h.movie_id
+ORDER  BY u.username, m.title;
+```
+
+```text
++----------+--------------------+---------------------+
+| username | title              | hidden_at           |
++----------+--------------------+---------------------+
+| alice    | Mad Max: Fury Road | 2026-11-06 03:39:01 |
++----------+--------------------+---------------------+
+1 row(s)
+```
+
+**4c.** Names of users who rated at least one movie (like customers who bought tickets)
+
+```sql
+SELECT DISTINCT u.username
+FROM   users u
+JOIN   ratings r ON r.user_id = u.user_id
+ORDER  BY u.username;
+```
+
+```text
++----------+
+| username |
++----------+
+| admin    |
+| alice    |
+| bob      |
+| carol    |
+| david    |
+| eve      |
++----------+
+6 row(s)
+```
+
+**4d.** All movies in the Sci-Fi genre (like the airplanes owned by Jet Blue)
+
+```sql
+SELECT m.title, m.release_year
+FROM   movies m
+JOIN   movie_genres mg ON mg.movie_id = m.movie_id
+JOIN   genres g        ON g.genre_id  = mg.genre_id
+WHERE  g.name = 'Sci-Fi'
+ORDER  BY m.release_year;
+```
+
+```text
++--------------------+--------------+
+| title              | release_year |
++--------------------+--------------+
+| Jurassic Park      | 1993         |
+| The Matrix         | 1999         |
+| Inception          | 2010         |
+| Interstellar       | 2014         |
+| Mad Max: Fury Road | 2015         |
++--------------------+--------------+
+5 row(s)
+```
 
 ## 6.1 Q1 — Sign up with favourite genres (use case 1)
 
@@ -955,6 +1068,15 @@ CREATE TABLE recommendations (
     INDEX rec_seed_idx (seed_movie_id),
     CONSTRAINT rec_strategy_chk CHECK (strategy IN ('popular', 'genre', 'item_cf')),
     CONSTRAINT rec_rank_chk     CHECK (rec_rank >= 1),
+    -- A seed movie exists exactly when the list is "Because you liked X".
+    CONSTRAINT rec_seed_strategy_chk
+        CHECK ((strategy = 'item_cf') = (seed_movie_id IS NOT NULL)),
+    -- "Because you liked X" never recommends X itself.
+    CONSTRAINT rec_seed_self_chk
+        CHECK (seed_movie_id IS NULL OR seed_movie_id <> movie_id),
+    -- A row cannot be shown before its list was generated.
+    CONSTRAINT rec_shown_chk
+        CHECK (shown_at IS NULL OR shown_at >= generated_at),
     CONSTRAINT rec_user_fk  FOREIGN KEY (user_id)  REFERENCES users (user_id)
         ON DELETE CASCADE,
     CONSTRAINT rec_movie_fk FOREIGN KEY (movie_id) REFERENCES movies (movie_id)
