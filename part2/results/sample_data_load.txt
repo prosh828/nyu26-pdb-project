@@ -1,0 +1,14 @@
++-----------------+----+
+| tbl             | n  |
++-----------------+----+
+| users           |  7 |
+| genres          |  6 |
+| movies          | 20 |
+| movie_genres    | 35 |
+| user_genres     | 18 |
+| ratings         | 56 |
+| view_events     | 19 |
+| watchlist       |  3 |
+| hidden_movies   |  1 |
+| recommendations |  5 |
++-----------------+----+
