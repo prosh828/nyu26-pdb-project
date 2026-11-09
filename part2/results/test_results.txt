@@ -1,4 +1,4 @@
-===== Basic listings (4a-4d) =====
+===== Basic listings =====
 ## 4a
 +----------+--------------------+--------------+---------+------------------------+
 | movie_id | title              | release_year | runtime | genres                 |

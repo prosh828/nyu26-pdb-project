@@ -9,11 +9,11 @@
 USE recco;
 SET time_zone = '+00:00';
 
--- ==== Basic listings (counterparts of the spec's example queries 4a-4d) ====
--- The spec's examples use the airline data (future flights, delayed flights,
--- customers who bought tickets, Jet Blue's airplanes). Recco's versions:
+-- ==== Basic listings ====
+-- Simple listing queries over the sample data (requirement 4, in place of
+-- the spec's airline examples).
 
--- 4a: all movies in the system, with their genres
+-- All movies in the system, with their genres
 SELECT m.movie_id, m.title, m.release_year, m.runtime,
        GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR ', ') AS genres
 FROM   movies m
@@ -22,20 +22,20 @@ JOIN   genres g        ON g.genre_id  = mg.genre_id
 GROUP  BY m.movie_id, m.title, m.release_year, m.runtime
 ORDER  BY m.movie_id;
 
--- 4b: movies a user has hidden (a per-user status, like "delayed")
+-- Movies a user has hidden
 SELECT u.username, m.title, h.hidden_at
 FROM   hidden_movies h
 JOIN   users  u ON u.user_id  = h.user_id
 JOIN   movies m ON m.movie_id = h.movie_id
 ORDER  BY u.username, m.title;
 
--- 4c: names of users who rated at least one movie (like customers who bought tickets)
+-- Users who rated at least one movie
 SELECT DISTINCT u.username
 FROM   users u
 JOIN   ratings r ON r.user_id = u.user_id
 ORDER  BY u.username;
 
--- 4d: all movies in the Sci-Fi genre (like the airplanes owned by Jet Blue)
+-- All movies in the Sci-Fi genre
 SELECT m.title, m.release_year
 FROM   movies m
 JOIN   movie_genres mg ON mg.movie_id = m.movie_id
