@@ -130,11 +130,11 @@ The data set is small on purpose, with every corner case the queries must handle
 
 Each query below is the application version from sql/03_queries.sql. The results come from running sql/04_test_queries.sql, which uses the same queries with concrete values, top to bottom on a fresh load of the schema and sample data. The statements marked "expected error" are meant to fail: they show a constraint at work.
 
-## 6.0 Basic listings (the spec's example queries 4a–4d)
+## 6.0 Basic listings
 
-The spec's examples list future flights, delayed flights, customers who bought tickets and Jet Blue's airplanes. These are Recco's counterparts, run first on the freshly loaded data.
+Simple listing queries over the sample data, in place of the spec's airline examples for requirement 4. They run first, on the freshly loaded data.
 
-**4a.** All movies in the system, with their genres
+**All movies in the system, with their genres**
 
 ```sql
 SELECT m.movie_id, m.title, m.release_year, m.runtime,
@@ -174,7 +174,7 @@ ORDER  BY m.movie_id;
 20 row(s)
 ```
 
-**4b.** Movies a user has hidden (a per-user status, like "delayed")
+**Movies a user has hidden**
 
 ```sql
 SELECT u.username, m.title, h.hidden_at
@@ -193,7 +193,7 @@ ORDER  BY u.username, m.title;
 1 row(s)
 ```
 
-**4c.** Names of users who rated at least one movie (like customers who bought tickets)
+**Users who rated at least one movie**
 
 ```sql
 SELECT DISTINCT u.username
@@ -216,7 +216,7 @@ ORDER  BY u.username;
 6 row(s)
 ```
 
-**4d.** All movies in the Sci-Fi genre (like the airplanes owned by Jet Blue)
+**All movies in the Sci-Fi genre**
 
 ```sql
 SELECT m.title, m.release_year
