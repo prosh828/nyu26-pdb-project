@@ -22,7 +22,7 @@ SET time_zone = '+00:00';
 -- The spec's examples use the airline data (future flights, delayed flights,
 -- customers who bought tickets, Jet Blue's airplanes). Recco's versions:
 
--- 4a: all movies in the system, with their genres
+-- all movies in the system, with their genres
 SELECT m.movie_id, m.title, m.release_year, m.runtime,
        GROUP_CONCAT(g.name ORDER BY g.name SEPARATOR ', ') AS genres
 FROM   movies m
@@ -56,7 +56,7 @@ ORDER  BY m.movie_id;
 -- | +----------+--------------------+--------------+---------+------------------------+
 -- => 20 row(s)
 
--- 4b: movies a user has hidden (a per-user status, like "delayed")
+-- movies a user has hidden (a per-user status, like "delayed")
 SELECT u.username, m.title, h.hidden_at
 FROM   hidden_movies h
 JOIN   users  u ON u.user_id  = h.user_id
@@ -69,7 +69,7 @@ ORDER  BY u.username, m.title;
 -- | +----------+--------------------+---------------------+
 -- => 1 row(s)
 
--- 4c: names of users who rated at least one movie (like customers who bought tickets)
+-- names of users who rated at least one movie (like customers who bought tickets)
 SELECT DISTINCT u.username
 FROM   users u
 JOIN   ratings r ON r.user_id = u.user_id
@@ -86,7 +86,7 @@ ORDER  BY u.username;
 -- | +----------+
 -- => 6 row(s)
 
--- 4d: all movies in the Sci-Fi genre (like the airplanes owned by Jet Blue)
+-- all movies in the Sci-Fi genre (like the airplanes owned by Jet Blue)
 SELECT m.title, m.release_year
 FROM   movies m
 JOIN   movie_genres mg ON mg.movie_id = m.movie_id
@@ -104,8 +104,8 @@ ORDER  BY m.release_year;
 -- | +--------------------+--------------+
 -- => 5 row(s)
 
--- ==== Q1: Sign up a new user with three favourite genres =============
--- 1a: grace picks three valid genres
+-- ==== Sign up a new user with three favourite genres =============
+-- grace picks three valid genres
 SET @username = 'grace', @email = 'grace@nyu.edu',
     @password_hash = 'pbkdf2:sha256:600000$6fZbG8PB$4ba9e3ad7b57b34122830f242525d071bdf35196a5750df8a8d0900e1e8223ad',
     @g1 = 'Comedy', @g2 = 'Romance', @g3 = 'Animation';
@@ -140,7 +140,7 @@ GROUP BY u.user_id, u.username, u.email, u.role;
 -- | +---------+----------+---------------+------+----------------------------+
 -- => 1 row(s)
 
--- 1b: heidi picks a genre that does not exist ('Western') -> no account at all
+-- heidi picks a genre that does not exist ('Western') -> no account at all
 SET @username = 'heidi', @email = 'heidi@nyu.edu',
     @g1 = 'Comedy', @g2 = 'Drama', @g3 = 'Western';
 START TRANSACTION;
@@ -175,7 +175,7 @@ INSERT INTO users (username, email, password_hash)
 VALUES ('grace2', 'grace@nyu.edu', @password_hash);
 -- => ERROR 1062: Duplicate entry 'grace@nyu.edu' for key 'users.users_email_uq'
 
--- ==== Q2: Rate, then re-rate, a movie (one statement, upsert) =========
+-- ==== Rate, then re-rate, a movie (one statement, upsert) =========
 -- bob rates The Dark Knight 3.0, then changes his mind to 4.5
 SET @user_id = 3, @movie_id = 9, @score = 3.0, @review = NULL;
 INSERT INTO ratings (user_id, movie_id, score, review)
@@ -207,7 +207,7 @@ WHERE  user_id = @user_id AND movie_id = @movie_id;
 INSERT INTO ratings (user_id, movie_id, score) VALUES (3, 1, 4.3);
 -- => ERROR 3819: Check constraint 'ratings_score_chk' is violated.
 
--- ==== Q3: Continue watching (alice) ===================================
+-- ==== Continue watching (alice) ===================================
 SET @user_id = 2;
 SELECT m.movie_id, m.title, lv.progress, lv.viewed_at AS last_viewed
 FROM  (SELECT ve.movie_id, ve.progress, ve.viewed_at,
@@ -227,7 +227,7 @@ ORDER BY lv.viewed_at DESC;
 -- | +----------+----------+----------+---------------------+
 -- => 2 row(s)
 
--- ==== Q4: Trending this week ==========================================
+-- ==== Trending this week ==========================================
 SELECT m.movie_id, m.title,
        COUNT(DISTINCT ve.user_id) AS viewers,
        COUNT(*)                   AS views
@@ -252,7 +252,7 @@ LIMIT 10;
 -- | +----------+---------------+---------+-------+
 -- => 9 row(s)
 
--- ==== Q5: Top-rated movies per genre (at least 3 ratings) =============
+-- ==== Top-rated movies per genre (at least 3 ratings) =============
 WITH movie_stats AS (
     SELECT movie_id, AVG(score) AS avg_score, COUNT(*) AS n_ratings
     FROM   ratings
@@ -295,8 +295,8 @@ ORDER BY genre, pos;
 -- | +-----------+-----+---------------+-----------+-----------+
 -- => 18 row(s)
 
--- ==== Q6: Genre-based picks for a user ================================
--- 6a: alice (has history)
+-- ==== Genre-based picks for a user ================================
+-- alice (has history)
 SET @user_id = 2;
 WITH taste AS (            -- favourite genres + genres of movies rated 4.0 or higher
     SELECT ug.genre_id FROM user_genres ug WHERE ug.user_id = @user_id
@@ -342,7 +342,7 @@ LIMIT 10;
 -- | +----------+--------------+-----------+-----------+
 -- => 6 row(s)
 
--- 6b: frank (brand-new user, favourite genres only)
+-- frank (brand-new user, favourite genres only)
 SET @user_id = 7;
 WITH taste AS (            -- favourite genres + genres of movies rated 4.0 or higher
     SELECT ug.genre_id FROM user_genres ug WHERE ug.user_id = @user_id
@@ -390,7 +390,7 @@ LIMIT 10;
 -- | +----------+---------------+-----------+-----------+
 -- => 8 row(s)
 
--- ==== Q7: "Because you liked X" — item-to-item (alice, X = The Matrix) =
+-- ==== "Because you liked X" — item-to-item (alice, X = The Matrix) =
 SET @user_id = 2, @seed_movie_id = 6;
 SELECT m.movie_id, m.title,
        COUNT(*)             AS co_raters,
@@ -429,11 +429,11 @@ LIMIT 10;
 -- | +----------+--------------+-----------+--------------+
 -- => 6 row(s)
 
--- ==== Q8: Regenerate alice's three lists in one run ===================
+-- ==== Regenerate alice's three lists in one run ===================
 -- One generated_at for the whole run; each strategy is its own list.
 SET @user_id = 2, @gen_at = NOW();
 
--- 8a: genre-based list
+-- genre-based list
 INSERT INTO recommendations
        (user_id, movie_id, strategy, seed_movie_id, rec_rank, score, generated_at)
 WITH taste AS (            -- favourite genres + genres of movies rated 4.0 or higher
@@ -482,7 +482,7 @@ INSERT INTO recommendations
 VALUES (@user_id, 20, 'genre', NULL, 1, 1.000, @gen_at);
 -- => ERROR 1062: Duplicate entry '2-genre-0-2026-11-08 03:39:01-1' for key 'recommendations.rec_list_rank_uq'
 
--- 8b: popular list
+-- popular list
 INSERT INTO recommendations
        (user_id, movie_id, strategy, seed_movie_id, rec_rank, score, generated_at)
 WITH trending AS (         -- Q4: distinct viewers in the last 7 days
@@ -511,7 +511,7 @@ SELECT @user_id, c.movie_id, 'popular', NULL,
 FROM   candidates c;
 -- => Query OK, 7 row(s) affected
 
--- 8c: "Because you liked The Matrix" list (seed_movie_id is set)
+-- "Because you liked The Matrix" list (seed_movie_id is set)
 SET @seed_movie_id = 6;
 INSERT INTO recommendations
        (user_id, movie_id, strategy, seed_movie_id, rec_rank, score, generated_at)
@@ -548,7 +548,7 @@ SELECT @user_id, c.movie_id, 'item_cf', @seed_movie_id,
 FROM   candidates c;
 -- => Query OK, 6 row(s) affected
 
--- 8d: the three stored lists
+-- the three stored lists
 SELECT r.strategy, r.seed_movie_id, r.rec_rank, m.title, r.score
 FROM   recommendations r
 JOIN   movies m ON m.movie_id = r.movie_id
@@ -588,7 +588,7 @@ INSERT INTO hidden_movies (user_id, movie_id) VALUES (2, 8);
 -- => Query OK, 1 row(s) affected
 
 SET @user_id = 2, @strategy = 'genre', @seed_movie_id = NULL;
--- 9a: show the genre list
+-- show the genre list
 DROP TEMPORARY TABLE IF EXISTS page;
 CREATE TEMPORARY TABLE page AS
 SELECT r.rec_id, r.rec_rank, m.movie_id, m.title, r.score
@@ -628,14 +628,14 @@ SELECT rec_rank, movie_id, title, score FROM page ORDER BY rec_rank;
 -- | +----------+----------+--------------+-------+
 -- => 5 row(s)
 
--- 9b: stamp the displayed rows with shown_at
+-- stamp the displayed rows with shown_at
 UPDATE recommendations r
 JOIN   page p ON p.rec_id = r.rec_id
 SET    r.shown_at = NOW()
 WHERE  r.shown_at IS NULL;               -- keep the first time it was shown
 -- => Query OK, 5 row(s) affected
 
--- 9c: refresh the page: the same list comes back
+-- refresh the page: the same list comes back
 DROP TEMPORARY TABLE IF EXISTS page;
 CREATE TEMPORARY TABLE page AS
 SELECT r.rec_id, r.rec_rank, m.movie_id, m.title, r.score
@@ -675,7 +675,7 @@ SELECT rec_rank, movie_id, title, score FROM page ORDER BY rec_rank;
 -- | +----------+----------+--------------+-------+
 -- => 5 row(s)
 
--- 9d: stamping again changes nothing: shown_at keeps the first display time
+-- stamping again changes nothing: shown_at keeps the first display time
 UPDATE recommendations r
 JOIN   page p ON p.rec_id = r.rec_id
 SET    r.shown_at = NOW()
@@ -683,7 +683,7 @@ WHERE  r.shown_at IS NULL;               -- keep the first time it was shown
 -- => Query OK, 0 row(s) affected
 
 SET @strategy = 'item_cf', @seed_movie_id = 6;
--- 9e: show the "Because you liked The Matrix" list
+-- show the "Because you liked The Matrix" list
 DROP TEMPORARY TABLE IF EXISTS page;
 CREATE TEMPORARY TABLE page AS
 SELECT r.rec_id, r.rec_rank, m.movie_id, m.title, r.score
@@ -719,7 +719,7 @@ SELECT rec_rank, movie_id, title, score FROM page ORDER BY rec_rank;
 -- | +----------+----------+--------------+-------+
 -- => 1 row(s)
 
--- 9f: run Q6 for alice again: everything just shown is held back
+-- run Q6 for alice again: everything just shown is held back
 SET @user_id = 2;
 WITH taste AS (            -- favourite genres + genres of movies rated 4.0 or higher
     SELECT ug.genre_id FROM user_genres ug WHERE ug.user_id = @user_id
@@ -756,8 +756,8 @@ LIMIT 10;
 -- => Empty set (0 rows)
 
 SET @strategy = 'popular', @seed_movie_id = NULL;
--- 9g: the popular list is a chart: The Godfather stays although it was shown
---     in a personal list 3 hours ago (only hidden Interstellar is dropped)
+-- the popular list is a chart: The Godfather stays although it was shown
+-- in a personal list 3 hours ago (only hidden Interstellar is dropped)
 DROP TEMPORARY TABLE IF EXISTS page;
 CREATE TEMPORARY TABLE page AS
 SELECT r.rec_id, r.rec_rank, m.movie_id, m.title, r.score
@@ -798,8 +798,8 @@ SELECT rec_rank, movie_id, title, score FROM page ORDER BY rec_rank;
 -- | +----------+----------+---------------+-------+
 -- => 6 row(s)
 
--- ==== Q10: Admin adds a movie (only an admin may do this) =============
--- 10a: admin (user 1) adds Dune: Part Two
+-- ==== Admin adds a movie (only an admin may do this) =============
+-- admin (user 1) adds Dune: Part Two
 SET @actor_id = 1, @title = 'Dune: Part Two', @year = 2024, @runtime = 166, @tmdb_id = 693134;
 START TRANSACTION;
 INSERT INTO movies (title, release_year, runtime, tmdb_id)
@@ -832,7 +832,7 @@ GROUP BY m.movie_id, m.title, m.release_year, m.runtime, m.tmdb_id;
 -- | +----------+----------------+--------------+---------+---------+----------------+
 -- => 1 row(s)
 
--- 10b: alice (a regular user) tries the same — nothing is inserted
+-- alice (a regular user) tries the same — nothing is inserted
 SET @actor_id = 2, @title = 'Oppenheimer', @year = 2023, @runtime = 180, @tmdb_id = 872585;
 START TRANSACTION;
 INSERT INTO movies (title, release_year, runtime, tmdb_id)
@@ -859,8 +859,8 @@ SELECT COUNT(*) AS oppenheimer_rows FROM movies WHERE title = 'Oppenheimer';
 -- | +------------------+
 -- => 1 row(s)
 
--- ==== Q11: Statistics for the admin dashboard =========================
--- 11a: average rating per genre
+-- ==== Statistics for the admin dashboard =========================
+-- average rating per genre
 SELECT g.name                         AS genre,
        COUNT(DISTINCT mg.movie_id)    AS movies,
        COUNT(r.score)                 AS ratings,
@@ -882,7 +882,7 @@ ORDER BY avg_score DESC, g.name;
 -- | +-----------+--------+---------+-----------+
 -- => 6 row(s)
 
--- 11b: most-rated movies
+-- most-rated movies
 SELECT m.title, COUNT(*) AS ratings, ROUND(AVG(r.score), 2) AS avg_score
 FROM   ratings r
 JOIN   movies m ON m.movie_id = r.movie_id
@@ -900,7 +900,7 @@ LIMIT 5;
 -- | +---------------+---------+-----------+
 -- => 5 row(s)
 
--- 11c: active users in the last 7 days (rated or watched something)
+-- active users in the last 7 days (rated or watched something)
 SELECT COUNT(DISTINCT user_id) AS active_users_7d
 FROM  (SELECT user_id FROM view_events WHERE viewed_at >= NOW() - INTERVAL 7 DAY
        UNION
