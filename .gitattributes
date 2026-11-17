@@ -1,0 +1,2 @@
+# Windows 팀원이 있어도 SQL/스크립트 줄바꿈을 LF로 통일
+* text=auto eol=lf
