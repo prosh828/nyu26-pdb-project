@@ -4,6 +4,11 @@ NYU CS-GY 6083 (Fall 2026) 팀 프로젝트 · Jonghyun Jeong, Seho Kim, Harry S
 
 Flask(Python 3.12) + MySQL 8.0 기반 영화 추천 웹 애플리케이션입니다.
 
+> 🤖 **AI 에이전트(Claude Code, Codex, Cursor 등)를 쓰는 경우**
+> 프로젝트 설정·스키마·규칙·실행/검증 방법을 [`AGENTS.md`](AGENTS.md) 에 정리해 두었습니다.
+> 에이전트가 작업 전에 이 파일을 읽도록 되어 있습니다 (Claude Code 는 [`CLAUDE.md`](CLAUDE.md) 가 `AGENTS.md` 를 불러옵니다).
+> 설정이나 규칙이 바뀌면 **`AGENTS.md` 도 같은 커밋에서 함께 수정**해 주세요. 개인용 메모는 `CLAUDE.local.md` 에 (git 제외).
+
 ---
 
 ## 개발 환경 구축
@@ -81,6 +86,8 @@ docker compose -f env/docker-compose.yml exec -T db mysql -urecco -preccopass --
 
 ```
 .
+├── AGENTS.md              # AI 에이전트용 프로젝트 컨텍스트 (CLAUDE.md 가 불러옴)
+├── CLAUDE.md
 ├── env/                   # Docker 환경 설정
 │   ├── docker-compose.yml # db / app / adminer 서비스 정의
 │   └── .env.example       # 설정 덮어쓰기용 예시 (cp 해서 env/.env 로, 선택)
