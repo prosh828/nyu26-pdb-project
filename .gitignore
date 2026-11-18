@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+.DS_Store
+.idea/
+.vscode/
+data/*
+!data/README.md
+CLAUDE.local.md

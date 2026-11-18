@@ -1,0 +1,4 @@
+Flask==3.0.3
+PyMySQL==1.1.1
+cryptography==43.0.3   # MySQL 8 기본 인증(caching_sha2_password)에 필요
+requests==2.32.3       # TMDB 포스터 조회용
