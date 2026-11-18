@@ -4,7 +4,7 @@ import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
 
-from . import db, movielens
+from . import db, movielens, tmdb
 
 
 def create_app():
@@ -12,6 +12,7 @@ def create_app():
     app.config["SECRET_KEY"] = os.environ.get("FLASK_SECRET_KEY", "dev")
     db.init_app(app)
     app.cli.add_command(movielens.import_movielens_command)
+    app.cli.add_command(tmdb.fetch_posters_command)
 
     @app.route("/")
     def index():

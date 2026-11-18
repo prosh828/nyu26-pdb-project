@@ -21,12 +21,13 @@ update this file in the same commit.
 ## Repository layout
 
 ```
-env/docker-compose.yml   db / loader / app / adminer services (paths inside are relative to env/)
+env/docker-compose.yml   db / loader / posters / app / adminer services (paths relative to env/)
 env/.env.example         optional overrides; a local env/.env (git-ignored) goes here too
 app/                     Flask app (Dockerfile, requirements.txt, recco/ package)
   recco/__init__.py      create_app() factory, routes, `flask ensure-admin` CLI command
   recco/db.py            connect(); get_db(): one PyMySQL connection per request (flask.g)
   recco/movielens.py     `flask import-movielens`: download + run db/import/movielens.sql
+  recco/tmdb.py          `flask fetch-posters`: fill movies.poster_url / runtime from TMDB
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
   02_sample_data.sql     hand-crafted sample data incl. demo accounts
@@ -146,6 +147,7 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   `03_views.sql`; files run in name order). Keep `02_sample_data.sql` consistent with them.
 - New Python dependencies: add a pinned version to `app/requirements.txt`.
 - Secrets (TMDB key, passwords other than the dev defaults) go in `env/.env`, never in git.
+  `env/.env` must be created before the first run: `cp env/.env.example env/.env`.
 
 ## MovieLens import (automatic)
 
@@ -174,6 +176,21 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   use window functions or another temporary table instead of self-joins.
 - Server-side `LOAD DATA INFILE` from `/var/lib/mysql-files` is not set up: mounting there
   read-only breaks the MySQL entrypoint's chown. Use `LOAD DATA LOCAL INFILE`.
+
+## Posters (TMDB)
+
+- Startup: `posters` (one-shot `flask fetch-posters`) runs after `loader`; the app does NOT wait
+  for it. It looks up only movies with a `tmdb_id` and `poster_url IS NULL`, commits every 200,
+  so it can be stopped and re-run (`docker compose -f env/docker-compose.yml run --rm posters`).
+- Stores only the URL, `https://image.tmdb.org/t/p/w342/<poster_path>`; images are never
+  downloaded into the DB. It also fills `runtime` when it is NULL. Existing values are never
+  overwritten (`COALESCE`).
+- Needs `TMDB_API_KEY` in `env/.env` (v3 key; a v4 token starting with `eyJ` also works).
+  Without it the job logs a skip and exits 0. **Never print, log or commit the key.**
+- Movies without a poster on TMDB stay NULL and are looked up again on the next run (few).
+  Pages must show a placeholder when `poster_url` is NULL.
+- TMDB terms: show "This product uses the TMDB API but is not endorsed or certified by TMDB."
+  somewhere in the web UI once posters are displayed.
 
 ## Open questions (ask the team, do not decide silently)
 
