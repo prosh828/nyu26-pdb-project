@@ -39,8 +39,32 @@ services:
       retries: 30
       start_period: 30s
 
+  # 1회성 작업: MovieLens ml-latest-small 을 내려받아 DB 에 넣고 종료합니다.
+  # 이미 넣었으면 바로 종료하고, LOAD_MOVIELENS=false 면 건너뜁니다 (샘플 데이터만).
+  # 다시 실행: docker compose -f env/docker-compose.yml run --rm loader
+  loader:
+    build: ../app
+    image: recco-app
+    container_name: recco-loader
+    restart: "no"
+    command: ["flask", "import-movielens"]
+    environment:
+      <<: *db-env
+      DB_HOST: db
+      DB_PORT: 3306
+      LOAD_MOVIELENS: ${LOAD_MOVIELENS:-true}
+    volumes:
+      - ../app:/app
+      - ../db/import:/import:ro          # movielens.sql
+      - ../data:/data:ro                 # 여기에 CSV 가 있으면 다운로드 대신 사용
+      - movielens_cache:/cache           # 내려받은 CSV 보관 (host 폴더 권한 문제 없음)
+    depends_on:
+      db:
+        condition: service_healthy
+
   app:
     build: ../app
+    image: recco-app
     container_name: recco-app
     restart: unless-stopped
     environment:
@@ -60,6 +84,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      loader:
+        condition: service_completed_successfully   # import 가 끝난 뒤에 앱 시작
 
   adminer:
     image: adminer:latest
@@ -74,3 +100,4 @@ services:
 
 volumes:
   db_data:
+  movielens_cache:

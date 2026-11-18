@@ -21,17 +21,19 @@ update this file in the same commit.
 ## Repository layout
 
 ```
-env/docker-compose.yml   db / app / adminer services (paths inside are relative to env/)
+env/docker-compose.yml   db / loader / app / adminer services (paths inside are relative to env/)
 env/.env.example         optional overrides; a local env/.env (git-ignored) goes here too
 app/                     Flask app (Dockerfile, requirements.txt, recco/ package)
   recco/__init__.py      create_app() factory, routes, `flask ensure-admin` CLI command
-  recco/db.py            get_db(): one PyMySQL connection per request (flask.g)
+  recco/db.py            connect(); get_db(): one PyMySQL connection per request (flask.g)
+  recco/movielens.py     `flask import-movielens`: download + run db/import/movielens.sql
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
   02_sample_data.sql     hand-crafted sample data incl. demo accounts
+db/import/movielens.sql  MovieLens CSV -> tables (run by the loader service, not by MySQL init)
 sql/03_queries.sql       the 11 app queries with %(name)s placeholders (reference, not runnable)
 sql/04_test_queries.sql  the same queries with concrete values + EXPECTED ERROR checks
-data/                    MovieLens CSVs (git-ignored except data/README.md)
+data/                    optional local MovieLens CSVs in data/ml-latest-small/ (git-ignored)
 part2/                   Part 2 deliverables: report, diagrams, submitted SQL — READ-ONLY
 ```
 
@@ -63,17 +65,21 @@ docker compose -f env/docker-compose.yml down -v && docker compose -f env/docker
 
 - `app/` is bind-mounted and Flask runs with `--debug`, so Python/template edits reload live.
   Only `requirements.txt` or `Dockerfile` changes need `--build`.
-- **After any change in `db/init/`, reset the volume (`down -v`, then `up -d`).** Init scripts
+- **After any change in `db/init/` or `db/import/`, reset the volume (`down -v`, then `up -d`).** Init scripts
   never re-run on an existing volume. Tell the user that their local data will be wiped.
-- Regression test for the schema and queries, on a **fresh** DB (it inserts rows, so a second
-  run fails on purpose):
+- Regression test for the schema and queries, on a **fresh, sample-only** DB (it inserts rows,
+  so a second run fails on purpose):
   ```bash
+  docker compose -f env/docker-compose.yml down -v
+  LOAD_MOVIELENS=false docker compose -f env/docker-compose.yml up -d
   docker compose -f env/docker-compose.yml exec -T db mysql -urecco -preccopass --force -t recco < sql/04_test_queries.sql
   ```
   Exactly 3 errors are expected (duplicate email, rating CHECK, duplicate rank). The result
-  rows must match `part2/results/test_results.txt` except for timestamps. Reset the DB afterwards.
+  rows must match `part2/results/test_results.txt` except for timestamps. Reset the DB afterwards
+  (`down -v`, then `up -d` without the variable to get MovieLens back).
 - There is no test suite or linter yet. "Verified" means: the stack starts, `/health` shows 10
-  tables, and the page or query you changed works against the sample data.
+  tables, the loader log says MovieLens was imported (or skipped), and the page or query you
+  changed works against the data.
 
 ## Accounts
 
@@ -141,22 +147,39 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
 - New Python dependencies: add a pinned version to `app/requirements.txt`.
 - Secrets (TMDB key, passwords other than the dev defaults) go in `env/.env`, never in git.
 
-## MovieLens import (not built yet)
+## MovieLens import (automatic)
 
-- Put CSVs in `data/`. Inside containers they are at `/data/` (both `app` and `db`).
-- In MySQL use `LOAD DATA LOCAL INFILE '/data/movies.csv' ...` with
-  `mysql --local-infile=1`. Server-side `LOAD DATA INFILE` from `/var/lib/mysql-files`
-  is not set up: mounting there read-only breaks the MySQL entrypoint's chown.
-- MovieLens titles carry the year in the title ("Toy Story (1995)"). Split it into
-  `title` + `release_year`. Some movies have no year, and there are duplicate title/year pairs
-  that would violate `UNIQUE(title, release_year)`. Decide how to handle them before importing.
-- `links.csv` gives `tmdbId` (may be empty) for posters. Ratings in MovieLens are already half steps.
+- Startup order: `db` healthy -> `loader` (one-shot, `flask import-movielens`) exits 0 -> `app`.
+  If the loader fails, the app does not start: read `docker compose -f env/docker-compose.yml logs loader`.
+- The loader skips when `LOAD_MOVIELENS=false` or when users with `@movielens.invalid` e-mails
+  exist (already imported). Re-run: `docker compose -f env/docker-compose.yml run --rm loader`.
+- CSV source, first match wins: `data/ml-latest-small/`, `data/`, then the `movielens_cache`
+  volume; otherwise it downloads the official zip and checks its MD5. If the download fails it
+  warns and exits 0, so the app starts with sample data only.
+- `db/import/movielens.sql` does the work, in ONE transaction: `LOAD DATA LOCAL INFILE` into
+  TEMPORARY staging tables, then `INSERT ... SELECT` into the real tables. Any error rolls
+  everything back. Python treats LOAD DATA warnings and row-count mismatches as errors.
+  Its format rules (comments on their own lines, `;` at line end) come from the simple splitter.
+- Mapping: MovieLens userId N -> user_id 1000+N (`ml_user_N`, password hash `!`, cannot log in);
+  movieId N -> movie_id 1000+N, unless the movie already exists (sample data), matched by
+  `tmdb_id`, then by (title, release_year). 19 of the 20 sample movies match.
+- Clean-up: "Matrix, The (1999)" -> "The Matrix" + 1999 (articles The/A/An/Le/La/Les/El/Das);
+  no year -> NULL; the 5 duplicate (title, year) pairs are merged into the lowest movieId
+  (if a user rated both copies, the later rating wins); a tmdbId shared by two movies stays on
+  the first; "(no genres listed)" -> no genre rows. `runtime` and `poster_url` stay NULL.
+- Result on a fresh DB: movies 9,738, genres 19, users 617, ratings 100,888.
+- `sql/04_test_queries.sql` matches the Part 2 results only with `LOAD_MOVIELENS=false`
+  (MovieLens adds genres and ratings to the sample movies).
+- A TEMPORARY table can appear only once per statement in MySQL ("Can't reopen table"):
+  use window functions or another temporary table instead of self-joins.
+- Server-side `LOAD DATA INFILE` from `/var/lib/mysql-files` is not set up: mounting there
+  read-only breaks the MySQL entrypoint's chown. Use `LOAD DATA LOCAL INFILE`.
 
 ## Open questions (ask the team, do not decide silently)
 
 - movie_genres → genres FK: the proposal's "Key decisions" say RESTRICT (implemented), but its
   table says CASCADE. Pending team confirmation (see PR #5).
-- How to treat MovieLens duplicate title/year rows (merge, skip, or relax the UNIQUE).
+- MovieLens duplicate title/year rows are merged (implemented). Confirm the team agrees.
 
 ## Git workflow
 
