@@ -28,6 +28,8 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/db.py            connect(); get_db(): one PyMySQL connection per request (flask.g)
   recco/movielens.py     `flask import-movielens`: download + run db/import/movielens.sql
   recco/tmdb.py          `flask fetch-posters`: fill movies.poster_url / runtime from TMDB
+  recco/movies.py        `GET /api/movies` JSON API (title search + pagination); its SQL lives here
+  tests/                 unittest tests (read-only against the running DB), see "Running and verifying"
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
   02_sample_data.sql     hand-crafted sample data incl. demo accounts
@@ -78,7 +80,12 @@ docker compose -f env/docker-compose.yml down -v && docker compose -f env/docker
   Exactly 3 errors are expected (duplicate email, rating CHECK, duplicate rank). The result
   rows must match `part2/results/test_results.txt` except for timestamps. Reset the DB afterwards
   (`down -v`, then `up -d` without the variable to get MovieLens back).
-- There is no test suite or linter yet. "Verified" means: the stack starts, `/health` shows 10
+- Python tests use the standard-library `unittest` (no pytest). They run inside the app container
+  and only SELECT from the running DB (works with sample data or MovieLens; they never write):
+  ```bash
+  docker compose -f env/docker-compose.yml exec app python -m unittest discover -s tests -t . -v
+  ```
+  There is no linter yet. "Verified" means: the stack starts, `/health` shows 10
   tables, the loader log says MovieLens was imported (or skipped), and the page or query you
   changed works against the data.
 
@@ -142,7 +149,8 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
 - `INSERT ... VALUES (...) AS new ON DUPLICATE KEY UPDATE col = new.col` is the upsert style
   in use (needs MySQL 8.0.19+). Do not use the deprecated `VALUES(col)` function.
 - Reuse the queries from `sql/03_queries.sql` when building features. If a query has to change,
-  change it there too and re-check `sql/04_test_queries.sql`.
+  change it there too and re-check `sql/04_test_queries.sql`. The movie-browsing SQL in
+  `recco/movies.py` is deliberately not in `sql/03`, which stays at the 11 Part 2 queries.
 - Schema changes go in `db/init/` (edit `01_schema.sql`, or add a numbered file such as
   `03_views.sql`; files run in name order). Keep `02_sample_data.sql` consistent with them.
 - New Python dependencies: add a pinned version to `app/requirements.txt`.
