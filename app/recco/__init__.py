@@ -3,8 +3,7 @@ import os
 import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
-
-from . import auth, db, movielens, pages, tmdb
+from . import auth, db, movielens, movies, pages, tmdb
 
 
 def create_app():
@@ -23,6 +22,8 @@ def create_app():
     @app.errorhandler(403)
     def forbidden(_error):
         return render_template("403.html"), 403
+
+    app.register_blueprint(movies.bp)
 
     @app.route("/")
     def index():
