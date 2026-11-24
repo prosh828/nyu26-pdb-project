@@ -101,6 +101,7 @@ services:
     volumes:
       - ../app:/app        # 코드 수정 시 자동 리로드
       - ../data:/data:ro   # MovieLens CSV (앱에서 import 할 때 사용)
+      - ../db/init:/db-init:ro   # 테스트(tests/support.py)가 스키마 파일을 읽어 recco_test 를 만듦
     depends_on:
       db:
         condition: service_healthy

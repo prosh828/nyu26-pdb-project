@@ -28,6 +28,10 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/db.py            connect(); get_db(): one PyMySQL connection per request (flask.g)
   recco/movielens.py     `flask import-movielens`: download + run db/import/movielens.sql
   recco/tmdb.py          `flask fetch-posters`: fill movies.poster_url / runtime from TMDB
+  recco/auth.py          /register, /login, /logout + `login_required` / `admin_required` / `load_current_user`
+  recco/pages.py         /home (any signed-in user) and /admin (admin only) placeholder pages
+  recco/templates/       Jinja pages; `base.html` holds the role-aware navigation
+  tests/                 unittest tests; `support.py` safely prepares the separate test DB `recco_test`
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
   02_sample_data.sql     hand-crafted sample data incl. demo accounts
@@ -78,7 +82,20 @@ docker compose -f env/docker-compose.yml down -v && docker compose -f env/docker
   Exactly 3 errors are expected (duplicate email, rating CHECK, duplicate rank). The result
   rows must match `part2/results/test_results.txt` except for timestamps. Reset the DB afterwards
   (`down -v`, then `up -d` without the variable to get MovieLens back).
-- There is no test suite or linter yet. "Verified" means: the stack starts, `/health` shows 10
+- Python tests use the standard-library `unittest` (no pytest). Run them inside the app container:
+  ```bash
+  docker compose -f env/docker-compose.yml exec app python -m unittest discover -s tests -t . -v
+  ```
+  Tests that write data (`tests/test_auth.py`) use ONLY the separate database `recco_test` and never
+  touch `recco`: `tests/support.py` opens its connection directly on `recco_test`, checks
+  `SELECT DATABASE()` before every write, and builds the tables from `db/init/01_schema.sql`
+  (mounted read-only at `/db-init`, skipping that script's `CREATE DATABASE`/`USE recco` lines).
+  Create the empty database once; it persists in the DB volume. The root password is read inside
+  the db container, not typed (the first run after pulling also needs `up -d --no-deps app` to get the `/db-init` mount):
+  ```bash
+  docker compose -f env/docker-compose.yml exec -T db sh -c 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot -e "CREATE DATABASE IF NOT EXISTS recco_test CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci; GRANT ALL ON recco_test.* TO \"$MYSQL_USER\"@\"%\";"'
+  ```
+  Without it the auth tests fail with a message pointing here. There is no linter yet. "Verified" means: the stack starts, `/health` shows 10
   tables, the loader log says MovieLens was imported (or skipped), and the page or query you
   changed works against the data.
 
@@ -89,6 +106,14 @@ docker compose -f env/docker-compose.yml down -v && docker compose -f env/docker
   Hashes are werkzeug `pbkdf2:sha256`, so use `werkzeug.security.check_password_hash`.
 - `flask ensure-admin` runs at every app start. It creates an admin from the `ADMIN_*` env vars
   (default `admin` / `admin1234`) **only if no admin exists**, so with sample data loaded it skips.
+- **Login is by `username` only** (not email). The session is Flask's signed cookie and holds only
+  `user_id`; `recco.auth.load_current_user()` re-reads the user, including `role`, from the DB on each
+  request. Every new protected route must use `@login_required` or `@admin_required` from
+  `recco/auth.py` (checked on the server; hiding links is not enough). Anonymous visitors are
+  redirected to `/login`; a non-admin on an admin route gets 403. Public sign-up always creates
+  role `user`. New accounts are hashed with `pbkdf2:sha256`; `check_password_hash` also accepts the
+  scrypt hashes `flask ensure-admin` creates (Werkzeug 3 default). Imported MovieLens users (hash `!`)
+  can never log in.
 
 ## Database schema (MySQL 8.0, utf8mb4, InnoDB)
 

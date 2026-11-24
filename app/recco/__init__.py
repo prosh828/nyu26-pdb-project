@@ -4,7 +4,7 @@ import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
 
-from . import db, movielens, tmdb
+from . import auth, db, movielens, pages, tmdb
 
 
 def create_app():
@@ -13,6 +13,16 @@ def create_app():
     db.init_app(app)
     app.cli.add_command(movielens.import_movielens_command)
     app.cli.add_command(tmdb.fetch_posters_command)
+    app.register_blueprint(auth.bp)
+    app.register_blueprint(pages.bp)
+
+    @app.context_processor
+    def inject_current_user():
+        return {"current_user": auth.load_current_user()}
+
+    @app.errorhandler(403)
+    def forbidden(_error):
+        return render_template("403.html"), 403
 
     @app.route("/")
     def index():
