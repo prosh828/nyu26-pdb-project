@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}My home - Recco{% endblock %}
+{% block content %}
+  <h1>Welcome, {{ current_user.username }}</h1>
+  <dl>
+    <dt>Email</dt><dd>{{ current_user.email }}</dd>
+    <dt>Role</dt><dd>{{ current_user.role }}</dd>
+    <dt>Favourite genres</dt>
+    <dd>{% if genres %}{{ genres | join(', ') }}{% else %}none{% endif %}</dd>
+  </dl>
+  <p>Ratings, watchlist and recommendations will appear here in later releases.</p>
+{% endblock %}
