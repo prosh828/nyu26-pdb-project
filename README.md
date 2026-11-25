@@ -156,3 +156,12 @@ docker compose -f env/docker-compose.yml exec -T db mysql -urecco -preccopass --
 - **스키마를 고쳤는데 반영이 안 됨**: `docker compose -f env/docker-compose.yml down -v` 후 다시 올리세요.
 - **`no configuration file provided`**: 레포 루트에서 `-f env/docker-compose.yml` 을 붙였는지 확인하세요.
 - **앱이 계속 재시작됨**: `docker compose -f env/docker-compose.yml logs app` 으로 에러를 확인하세요.
+
+## DB 백업
+
+컨테이너가 실행 중일 때 레포 루트에서:
+
+    bash db/backup.sh
+
+`db/backup/recco_<날짜_시간>.sql` 이 생성됩니다 (git 에는 올라가지 않음).
+복원: `docker compose -f env/docker-compose.yml exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < db/backup/<파일>.sql`
