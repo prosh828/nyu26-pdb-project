@@ -3,7 +3,7 @@ import os
 import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
-from . import auth, browse, db, movielens, movies, pages, search, tmdb
+from . import auth, browse, db, movielens, movies, pages, search, tmdb, watch
 
 
 def create_app():
@@ -26,6 +26,7 @@ def create_app():
     app.register_blueprint(movies.bp)
     app.register_blueprint(browse.bp)
     app.register_blueprint(search.bp)
+    app.register_blueprint(watch.bp)
 
     @app.route("/")
     def index():

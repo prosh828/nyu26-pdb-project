@@ -34,6 +34,7 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/movies.py        `GET /api/movies` JSON API (title search + pagination, incl. poster_url); its SQL lives here
   recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list
   recco/search.py        title search: `/search` page, `/search/results` (live-update HTML fragment), `GET /api/search`
+  recco/watch.py         watch page `/movies/<id>` (simulated player) + movie / reviews / rating / progress JSON API
   recco/templates/_movies.html  shared `movie_row` carousel macro (+ static/carousel.css, static/carousel.js)
   tests/                 unittest tests (read-only against the running DB), see "Running and verifying"
 db/init/                 SQL run automatically ONLY when the DB volume is empty
@@ -174,6 +175,14 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   change it there too and re-check `sql/04_test_queries.sql`. The movie-browsing SQL in
   `recco/movies.py` and the landing-page SQL in `recco/browse.py` are deliberately not in `sql/03`,
   which stays at the 11 Part 2 queries.
+- Watch page (`recco/watch.py`): every movie card links to `/movies/<id>`. There are no video
+  files: the player is the poster plus a real-time clock over `runtime` (100 min if NULL).
+  A review is `ratings.review`, so it always comes with a score. Rating writes reuse query (2) of
+  `sql/03_queries.sql` (upsert) and commit at once. Signed-in users' progress is appended to
+  `view_events` (pause, every minute, end, page leave) and the page resumes from the last value
+  unless it was >= 90 (finished). JSON write endpoints (`PUT`/`DELETE /api/movies/<id>/rating`,
+  `POST /api/movies/<id>/progress`) return 401 without login and 415 without a JSON body; the
+  JSON-only rule is what protects them from cross-site form posts (there is no CSRF token).
 - Movie lists on public pages use the `movie_row` macro from `templates/_movies.html`; do not copy
   the card markup. After inserting rows with JS, call `window.initCarousels(element)`.
 - Search (`recco/search.py`): a title matches when it shares a run of at least

@@ -1,5 +1,6 @@
 {# Shared movie row: title, one-line description, poster carousel.
-   `row` = {key, title, description, movies: [{title, release_year, poster_url, avg_score}]}.
+   `row` = {key, title, description, movies: [{movie_id, title, release_year, poster_url, avg_score}]}.
+   Each card links to the watch page /movies/<movie_id>.
    Pages that use it link static/carousel.css and static/carousel.js. #}
 {% macro movie_row(row) %}
   <section class="row" aria-labelledby="row-{{ row.key }}">
@@ -11,7 +12,7 @@
       <button class="arrow prev" type="button" aria-label="Scroll {{ row.title }} left" disabled>&#8249;</button>
       <div class="track">
         {% for m in row.movies %}
-          <article class="card">
+          <a class="card" href="{{ url_for('watch.watch_page', movie_id=m.movie_id) }}">
             <div class="poster">
               {% if m.poster_url %}
                 <img src="{{ m.poster_url }}" alt="{{ m.title }} poster" loading="lazy">
@@ -21,7 +22,7 @@
             </div>
             <p class="title">{{ m.title }}</p>
             <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
-          </article>
+          </a>
         {% endfor %}
       </div>
       <button class="arrow next" type="button" aria-label="Scroll {{ row.title }} right">&#8250;</button>

@@ -1,0 +1,429 @@
+{% extends "base.html" %}
+{% from "_movies.html" import tmdb_attribution %}
+{% block title %}{{ movie.title }} - Recco{% endblock %}
+{% block body_class %}browse watch-page{% endblock %}
+{% block main_class %}browse-main watch-main{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='carousel.css') }}">
+<style>
+  main.watch-main { padding-top: 0; }
+
+  /* --- player ------------------------------------------------------------ */
+  .player { position: relative; background: #000; user-select: none; }
+  .screen { position: relative; height: min(62vh, 36rem); min-height: 16rem; overflow: hidden; cursor: pointer; }
+  .screen .backdrop { position: absolute; inset: -2rem; width: calc(100% + 4rem); height: calc(100% + 4rem);
+    object-fit: cover; filter: blur(28px) brightness(.45); transform: scale(1.05); }
+  .screen .poster-big { position: relative; display: block; height: 100%; margin: 0 auto; aspect-ratio: 2 / 3;
+    object-fit: cover; box-shadow: 0 0 3rem rgba(0, 0, 0, .8); transition: filter .3s ease; }
+  .player.playing .poster-big { filter: brightness(1.05) saturate(1.1); }
+  .screen .no-poster { position: relative; height: 100%; display: flex; align-items: center; justify-content: center;
+    color: #737373; font-size: 1.5rem; padding: 0 2rem; text-align: center; }
+  .big-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 5rem; height: 5rem;
+    border-radius: 50%; border: 2px solid #fff; background: rgba(0, 0, 0, .55); color: #fff; cursor: pointer;
+    display: flex; align-items: center; justify-content: center; transition: opacity .2s ease, transform .2s ease; }
+  .big-play:hover { transform: translate(-50%, -50%) scale(1.08); }
+  .player.playing .big-play { opacity: 0; pointer-events: none; }
+  .status { position: absolute; left: 1rem; top: 1rem; padding: .25rem .6rem; border-radius: 3px;
+    background: rgba(0, 0, 0, .6); color: #e5e5e5; font-size: .8rem; }
+  .status:empty { display: none; }
+
+  .controls { display: flex; align-items: center; gap: .9rem; padding: .6rem 1.25rem .8rem; background: #0b0b0b; }
+  .controls button { background: none; border: 0; color: #fff; cursor: pointer; padding: .2rem; display: flex; }
+  .controls button:hover { color: #e50914; }
+  .controls .time { font-variant-numeric: tabular-nums; font-size: .85rem; color: #d4d4d4; white-space: nowrap; }
+  .seek { flex: 1; -webkit-appearance: none; appearance: none; height: .3rem; border-radius: 3px; cursor: pointer;
+    background: linear-gradient(to right, #e50914 var(--pct, 0%), #4b4b4b var(--pct, 0%)); }
+  .seek::-webkit-slider-thumb { -webkit-appearance: none; width: .9rem; height: .9rem; border-radius: 50%; background: #e50914; }
+  .seek::-moz-range-thumb { width: .9rem; height: .9rem; border: 0; border-radius: 50%; background: #e50914; }
+  .player:fullscreen .screen { height: calc(100vh - 3.2rem); }
+  .icon-pause, .player.playing .icon-play { display: none; }
+  .player.playing .icon-pause { display: inline; }
+
+  /* --- details / reviews ------------------------------------------------- */
+  .section { padding: 0 3rem; max-width: 60rem; }
+  .details { display: grid; grid-template-columns: 1fr; gap: .3rem; margin-top: 1.5rem; }
+  .details h1 { margin: 0; color: #fff; font-size: 2rem; }
+  .facts { display: flex; flex-wrap: wrap; gap: .4rem 1rem; color: #b3b3b3; font-size: .95rem; }
+  .facts .score { color: #f5c518; }
+  .chips { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .4rem; }
+  .chip { padding: .15rem .6rem; border: 1px solid #4b4b4b; border-radius: 999px; font-size: .8rem; color: #d4d4d4; }
+  .details a { color: #b3b3b3; font-size: .85rem; }
+
+  h2.section-title { color: #fff; font-size: 1.3rem; margin: 2.25rem 0 .75rem; }
+  .panel { background: #1f1f1f; border-radius: 6px; padding: 1rem 1.25rem; }
+  .panel p { margin: 0; }
+  .stars { position: relative; display: inline-block; font-size: 2rem; line-height: 1; letter-spacing: .1rem;
+    color: #4b4b4b; cursor: pointer; outline-offset: 4px; }
+  .stars .fill { position: absolute; left: 0; top: 0; overflow: hidden; white-space: nowrap; color: #f5c518;
+    width: calc(var(--score, 0) / 5 * 100%); pointer-events: none; }
+  .star-row { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+  .star-value { color: #d4d4d4; font-variant-numeric: tabular-nums; }
+  .panel textarea { display: block; width: 100%; box-sizing: border-box; min-height: 6rem; margin-top: .9rem;
+    padding: .6rem; background: #141414; color: #e5e5e5; border: 1px solid #444; border-radius: 4px; font: inherit; resize: vertical; }
+  .actions { display: flex; align-items: center; gap: .75rem; margin-top: .75rem; flex-wrap: wrap; }
+  .btn { padding: .5rem 1.1rem; border-radius: 4px; border: 0; cursor: pointer; font: inherit; font-weight: 600; }
+  .btn.primary { background: #e50914; color: #fff; }
+  .btn.primary[disabled] { opacity: .5; cursor: default; }
+  .btn.ghost { background: transparent; color: #b3b3b3; border: 1px solid #4b4b4b; }
+  .form-msg { font-size: .85rem; color: #a3a3a3; }
+  .form-msg.error { color: #f87171; }
+  .form-msg.ok { color: #4ade80; }
+  .counter { margin-left: auto; font-size: .75rem; color: #737373; }
+
+  .reviews { list-style: none; margin: 0; padding: 0; display: grid; gap: .75rem; }
+  .review { background: #1f1f1f; border-radius: 6px; padding: .85rem 1.1rem; }
+  .review.mine { outline: 1px solid #e50914; }
+  .review header { display: flex; flex-wrap: wrap; gap: .3rem .8rem; align-items: baseline; font-size: .85rem; color: #a3a3a3; }
+  .review header strong { color: #fff; font-size: .95rem; }
+  .review .r-score { color: #f5c518; }
+  .review p { margin: .45rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; color: #e5e5e5; }
+  .more { margin-top: .75rem; }
+
+  @media (max-width: 600px) {
+    .section { padding: 0 1rem; }
+    .controls { padding: .5rem .75rem .7rem; gap: .6rem; }
+    .controls .time { font-size: .75rem; }
+  }
+</style>
+{% endblock %}
+
+{% macro star_text(score) -%}
+  {%- set full = (score // 1) | int -%}{{ '★' * full }}{% if score - full >= 0.5 %}½{% endif %}
+{%- endmacro %}
+
+{% block content %}
+  {# ---------------------------------------------------------------- player #}
+  <section class="player" id="player" aria-label="Player"
+           data-duration="{{ runtime * 60 }}" data-resume="{{ resume_progress }}"
+           data-progress-url="{{ url_for('watch.post_progress', movie_id=movie.movie_id) if current_user else '' }}">
+    <div class="screen" id="screen">
+      {% if movie.poster_url %}
+        <img class="backdrop" src="{{ movie.poster_url }}" alt="" aria-hidden="true">
+        <img class="poster-big" src="{{ movie.poster_url }}" alt="{{ movie.title }} poster">
+      {% else %}
+        <div class="no-poster">{{ movie.title }}</div>
+      {% endif %}
+      <span class="status" id="status"></span>
+      <button class="big-play" id="big-play" type="button" aria-label="Play">
+        <svg width="34" height="34" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+      </button>
+    </div>
+    <div class="controls">
+      <button type="button" id="toggle" aria-label="Play / pause (space)">
+        <svg class="icon-play" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="icon-pause" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>
+      </button>
+      <button type="button" id="back10" aria-label="Back 10 seconds">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg>
+      </button>
+      <button type="button" id="fwd10" aria-label="Forward 10 seconds">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 4v5h-5"/></svg>
+      </button>
+      <span class="time" id="elapsed">0:00:00</span>
+      <input class="seek" id="seek" type="range" min="0" max="{{ runtime * 60 }}" step="1" value="0" aria-label="Seek">
+      <span class="time" id="total"></span>
+      <button type="button" id="fullscreen" aria-label="Full screen">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
+      </button>
+    </div>
+  </section>
+
+  {# --------------------------------------------------------------- details #}
+  <section class="section details">
+    <h1>{{ movie.title }}</h1>
+    <div class="facts">
+      {% if movie.release_year %}<span>{{ movie.release_year }}</span>{% endif %}
+      <span>{% if movie.runtime %}{{ movie.runtime // 60 }}h {{ movie.runtime % 60 }}m{% else %}Runtime unknown{% endif %}</span>
+      <span class="score" id="avg-score">{% if stats.avg_score is not none %}&#9733; {{ '%.1f' | format(stats.avg_score) }}{% else %}No ratings yet{% endif %}</span>
+      <span id="rating-count">{{ '{:,}'.format(stats.rating_count) }} rating{{ '' if stats.rating_count == 1 else 's' }}</span>
+    </div>
+    {% if movie.genres %}
+      <div class="chips">{% for g in movie.genres %}<span class="chip">{{ g }}</span>{% endfor %}</div>
+    {% endif %}
+    {% if movie.tmdb_id %}
+      <p><a href="https://www.themoviedb.org/movie/{{ movie.tmdb_id }}" target="_blank" rel="noopener noreferrer">View on TMDB &#8599;</a></p>
+    {% endif %}
+  </section>
+
+  {# ------------------------------------------------------------ my rating #}
+  <section class="section">
+    <h2 class="section-title">Your rating</h2>
+    {% if current_user %}
+      <form class="panel" id="rating-form"
+            data-url="{{ url_for('watch.put_rating', movie_id=movie.movie_id) }}"
+            data-score="{{ my_rating.score if my_rating else 0 }}">
+        <div class="star-row">
+          <span class="stars" id="stars" role="slider" tabindex="0" aria-label="Your score"
+                aria-valuemin="0.5" aria-valuemax="5" aria-valuenow="{{ my_rating.score if my_rating else 0 }}"
+                style="--score: {{ my_rating.score if my_rating else 0 }}">&#9733;&#9733;&#9733;&#9733;&#9733;<span class="fill" aria-hidden="true">&#9733;&#9733;&#9733;&#9733;&#9733;</span></span>
+          <span class="star-value" id="star-value">{% if my_rating %}{{ '%.1f' | format(my_rating.score) }} / 5{% else %}Click a star (half stars allowed){% endif %}</span>
+        </div>
+        <textarea id="review" name="review" maxlength="{{ review_max_length }}"
+                  placeholder="Write a review (optional). What did you think?">{{ my_rating.review if my_rating and my_rating.review else '' }}</textarea>
+        <div class="actions">
+          <button class="btn primary" id="save" type="submit" {% if not my_rating %}disabled{% endif %}>{{ 'Update' if my_rating else 'Save' }}</button>
+          <button class="btn ghost" id="delete" type="button" {% if not my_rating %}hidden{% endif %}>Delete my rating</button>
+          <span class="form-msg" id="form-msg">{% if my_rating %}Saved {{ my_rating.rated_at[:10] }}{% endif %}</span>
+          <span class="counter" id="counter"></span>
+        </div>
+      </form>
+    {% else %}
+      <p class="panel"><a href="{{ url_for('auth.login') }}" style="color:#fff">Log in</a> to rate and review this movie.</p>
+    {% endif %}
+  </section>
+
+  {# --------------------------------------------------------------- reviews #}
+  <section class="section">
+    <h2 class="section-title">Reviews <span id="review-count" style="color:#737373;font-weight:400">({{ stats.review_count }})</span></h2>
+    <ul class="reviews" id="reviews"
+        data-url="{{ url_for('watch.reviews_api', movie_id=movie.movie_id) }}"
+        data-me="{{ current_user.user_id if current_user else '' }}">
+      {% for r in reviews %}
+        <li class="review{% if current_user and r.user_id == current_user.user_id %} mine{% endif %}">
+          <header><strong>{{ r.username }}</strong><span class="r-score">{{ star_text(r.score) }} {{ '%.1f' | format(r.score) }}</span><time datetime="{{ r.rated_at }}">{{ r.rated_at[:10] }}</time></header>
+          <p>{{ r.review }}</p>
+        </li>
+      {% else %}
+        <li class="review empty-review"><p>No reviews yet. Be the first to write one.</p></li>
+      {% endfor %}
+    </ul>
+    <button class="btn ghost more" id="more" type="button" {% if stats.review_count <= reviews | length %}hidden{% endif %}>Show more reviews</button>
+  </section>
+
+  {{ tmdb_attribution() }}
+
+  <script>
+  (function () {
+    // ----------------------------------------------------------- player
+    // There is no video file: the "movie" is the poster plus a clock that runs
+    // in real time over the runtime. Signed-in users' progress (0-100 %) is
+    // saved to view_events on pause, every minute while playing, at the end
+    // and when leaving the page; the next visit resumes there.
+    var player = document.getElementById("player");
+    var duration = Number(player.dataset.duration);
+    var progressUrl = player.dataset.progressUrl;
+    var seek = document.getElementById("seek");
+    var elapsedEl = document.getElementById("elapsed");
+    var statusEl = document.getElementById("status");
+    var position = Math.floor(duration * Number(player.dataset.resume) / 100);
+    var playing = false, lastTick = 0, timer = null, lastSaved = null, lastSaveAt = 0;
+
+    function fmt(sec) {
+      sec = Math.max(0, Math.floor(sec));
+      var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+      return h + ":" + String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+    }
+    function render() {
+      seek.value = position;
+      seek.style.setProperty("--pct", (position / duration * 100) + "%");
+      elapsedEl.textContent = fmt(position);
+    }
+    function percent() { return Math.min(100, Math.floor(position / duration * 100)); }
+
+    function save(useBeacon) {
+      if (!progressUrl) return;
+      var p = percent();
+      if (p === lastSaved) return;
+      lastSaved = p; lastSaveAt = Date.now();
+      var body = JSON.stringify({ progress: p });
+      if (useBeacon && navigator.sendBeacon) {
+        navigator.sendBeacon(progressUrl, new Blob([body], { type: "application/json" }));
+      } else {
+        fetch(progressUrl, { method: "POST", headers: { "Content-Type": "application/json" }, body: body })
+          .catch(function () { lastSaved = null; });
+      }
+    }
+
+    function tick() {
+      var now = performance.now();
+      position = Math.min(duration, position + (now - lastTick) / 1000);
+      lastTick = now;
+      render();
+      if (position >= duration) { pause(); statusEl.textContent = "Finished"; return; }
+      if (Date.now() - lastSaveAt > 60000) save(false);
+    }
+    function play() {
+      if (playing) return;
+      if (position >= duration) position = 0;
+      playing = true; lastTick = performance.now();
+      player.classList.add("playing");
+      statusEl.textContent = "";
+      timer = setInterval(tick, 250);
+    }
+    function pause() {
+      if (!playing) return;
+      playing = false; clearInterval(timer);
+      player.classList.remove("playing");
+      statusEl.textContent = "Paused";
+      save(false);
+    }
+    function toggle() { playing ? pause() : play(); }
+    function jump(delta) { position = Math.min(duration, Math.max(0, position + delta)); render(); }
+
+    document.getElementById("total").textContent = fmt(duration);
+    document.getElementById("toggle").addEventListener("click", toggle);
+    document.getElementById("big-play").addEventListener("click", function (e) { e.stopPropagation(); play(); });
+    document.getElementById("screen").addEventListener("click", toggle);
+    document.getElementById("back10").addEventListener("click", function () { jump(-10); });
+    document.getElementById("fwd10").addEventListener("click", function () { jump(10); });
+    seek.addEventListener("input", function () { position = Number(seek.value); render(); });
+    seek.addEventListener("change", function () { if (!playing) save(false); });
+    document.getElementById("fullscreen").addEventListener("click", function () {
+      if (document.fullscreenElement) document.exitFullscreen();
+      else if (player.requestFullscreen) player.requestFullscreen();
+    });
+    document.addEventListener("keydown", function (e) {
+      var tag = (e.target.tagName || "").toLowerCase();
+      if (tag === "input" || tag === "textarea" || e.target.isContentEditable || e.target.id === "stars") return;
+      if (e.key === " " || e.key === "k") { e.preventDefault(); toggle(); }
+      else if (e.key === "ArrowLeft") jump(-10);
+      else if (e.key === "ArrowRight") jump(10);
+    });
+    window.addEventListener("pagehide", function () { if (position > 0) save(true); });
+    if (position > 0) statusEl.textContent = "Resume from " + fmt(position);
+    render();
+
+    // ----------------------------------------------------------- reviews list
+    var list = document.getElementById("reviews");
+    var me = list.dataset.me;
+    var moreBtn = document.getElementById("more");
+    var loadedPages = 1;
+
+    function starText(score) { return "★".repeat(Math.floor(score)) + (score % 1 >= 0.5 ? "½" : ""); }
+    function reviewItem(r) {                       // built with textContent: no HTML injection
+      var li = document.createElement("li");
+      li.className = "review" + (String(r.user_id) === me ? " mine" : "");
+      var head = document.createElement("header");
+      var who = document.createElement("strong"); who.textContent = r.username;
+      var sc = document.createElement("span"); sc.className = "r-score";
+      sc.textContent = starText(r.score) + " " + r.score.toFixed(1);
+      var when = document.createElement("time"); when.dateTime = r.rated_at; when.textContent = r.rated_at.slice(0, 10);
+      head.append(who, sc, when);
+      var p = document.createElement("p"); p.textContent = r.review;
+      li.append(head, p);
+      return li;
+    }
+    function showStats(stats) {
+      document.getElementById("avg-score").textContent =
+        stats.avg_score === null ? "No ratings yet" : "★ " + stats.avg_score.toFixed(1);
+      document.getElementById("rating-count").textContent =
+        stats.rating_count.toLocaleString("en-US") + (stats.rating_count === 1 ? " rating" : " ratings");
+      document.getElementById("review-count").textContent = "(" + stats.review_count + ")";
+    }
+    function loadReviews(pages) {                  // reload the first `pages` pages
+      var size = {{ reviews_page_size }};
+      return fetch(list.dataset.url + "?page=1&page_size=" + Math.min(100, size * pages))
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          list.replaceChildren();
+          if (!data.items.length) {
+            var li = document.createElement("li"); li.className = "review empty-review";
+            var p = document.createElement("p"); p.textContent = "No reviews yet. Be the first to write one.";
+            li.append(p); list.append(li);
+          }
+          data.items.forEach(function (r) { list.append(reviewItem(r)); });
+          moreBtn.hidden = data.items.length >= data.stats.review_count;
+          showStats(data.stats);
+        });
+    }
+    moreBtn.addEventListener("click", function () {
+      var size = {{ reviews_page_size }};
+      fetch(list.dataset.url + "?page=" + (loadedPages + 1) + "&page_size=" + size)
+        .then(function (r) { return r.json(); })
+        .then(function (data) {
+          loadedPages += 1;
+          data.items.forEach(function (r) { list.append(reviewItem(r)); });
+          moreBtn.hidden = loadedPages >= data.pagination.total_pages;
+        });
+    });
+
+    // ----------------------------------------------------------- my rating
+    var form = document.getElementById("rating-form");
+    if (!form) return;
+    var stars = document.getElementById("stars");
+    var starValue = document.getElementById("star-value");
+    var review = document.getElementById("review");
+    var saveBtn = document.getElementById("save");
+    var deleteBtn = document.getElementById("delete");
+    var msg = document.getElementById("form-msg");
+    var counter = document.getElementById("counter");
+    var score = Number(form.dataset.score);
+
+    function showScore(value) {
+      stars.style.setProperty("--score", value);
+      stars.setAttribute("aria-valuenow", value);
+      starValue.textContent = value ? value.toFixed(1) + " / 5" : "Click a star (half stars allowed)";
+    }
+    function scoreAt(clientX) {
+      var box = stars.getBoundingClientRect();
+      return Math.min(5, Math.max(0.5, Math.ceil((clientX - box.left) / box.width * 10) / 2));
+    }
+    function setScore(value) { score = value; showScore(score); saveBtn.disabled = false; msg.textContent = ""; }
+    stars.addEventListener("mousemove", function (e) { showScore(scoreAt(e.clientX)); });
+    stars.addEventListener("mouseleave", function () { showScore(score); });
+    stars.addEventListener("click", function (e) { setScore(scoreAt(e.clientX)); });
+    stars.addEventListener("keydown", function (e) {
+      if (e.key === "ArrowRight" || e.key === "ArrowUp") { e.preventDefault(); setScore(Math.min(5, (score || 0) + 0.5)); }
+      if (e.key === "ArrowLeft" || e.key === "ArrowDown") { e.preventDefault(); setScore(Math.max(0.5, (score || 1) - 0.5)); }
+    });
+    function updateCounter() { counter.textContent = review.value.length + " / {{ review_max_length }}"; }
+    review.addEventListener("input", function () { updateCounter(); if (score) saveBtn.disabled = false; });
+    updateCounter();
+
+    function say(text, kind) { msg.textContent = text; msg.className = "form-msg" + (kind ? " " + kind : ""); }
+    function errorText(resp, data) {
+      if (resp.status === 401) return "Your session ended. Please log in again.";
+      return (data && data.error && data.error.message) || ("Request failed (" + resp.status + ")");
+    }
+    function send(method, body) {
+      saveBtn.disabled = true;
+      return fetch(form.dataset.url, {
+        method: method, headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: body ? JSON.stringify(body) : undefined
+      }).then(function (resp) {
+        return resp.json().catch(function () { return null; }).then(function (data) {
+          if (!resp.ok) throw new Error(errorText(resp, data));
+          return data;
+        });
+      });
+    }
+
+    form.addEventListener("submit", function (e) {
+      e.preventDefault();
+      if (!score) { say("Pick a score first: a review needs a star rating.", "error"); return; }
+      say("Saving...");
+      send("PUT", { score: score, review: review.value })
+        .then(function (data) {
+          score = data.my_rating.score; showScore(score);
+          review.value = data.my_rating.review || ""; updateCounter();
+          saveBtn.textContent = "Update"; deleteBtn.hidden = false;
+          say("Saved", "ok");
+          showStats(data.stats);
+          return loadReviews(loadedPages);
+        })
+        .catch(function (err) { saveBtn.disabled = false; say(err.message, "error"); });
+    });
+
+    var confirmPending = false;
+    deleteBtn.addEventListener("click", function () {
+      if (!confirmPending) {                      // two clicks instead of confirm()
+        confirmPending = true; deleteBtn.textContent = "Click again to delete";
+        setTimeout(function () { confirmPending = false; deleteBtn.textContent = "Delete my rating"; }, 4000);
+        return;
+      }
+      confirmPending = false;
+      say("Deleting...");
+      send("DELETE")
+        .then(function (data) {
+          score = 0; showScore(0); review.value = ""; updateCounter();
+          saveBtn.textContent = "Save"; saveBtn.disabled = true;
+          deleteBtn.hidden = true; deleteBtn.textContent = "Delete my rating";
+          say("Deleted", "ok");
+          showStats(data.stats);
+          return loadReviews(loadedPages);
+        })
+        .catch(function (err) { saveBtn.disabled = false; say(err.message, "error"); });
+    });
+  })();
+  </script>
+{% endblock %}
