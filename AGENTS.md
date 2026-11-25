@@ -32,7 +32,8 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/pages.py         /home (any signed-in user) and /admin (admin only) placeholder pages
   recco/templates/       Jinja pages; `base.html` holds the role-aware navigation
   recco/movies.py        `GET /api/movies` JSON API (title search + pagination, incl. poster_url); its SQL lives here
-  recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list
+  recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list;
+                         Continue Watching row (query (3)) for `/` and `/home` + `GET /api/continue-watching`
   recco/search.py        title search: `/search` page, `/search/results` (live-update HTML fragment), `GET /api/search`
   recco/watch.py         watch page `/movies/<id>` (simulated player) + movie / reviews / rating / progress JSON API
   recco/templates/_movies.html  shared `movie_row` carousel macro (+ static/carousel.css, static/carousel.js)
@@ -175,6 +176,10 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   change it there too and re-check `sql/04_test_queries.sql`. The movie-browsing SQL in
   `recco/movies.py` and the landing-page SQL in `recco/browse.py` are deliberately not in `sql/03`,
   which stays at the 11 Part 2 queries.
+- Continue Watching (`browse.load_continue_watching`): query (3) of `sql/03_queries.sql` (latest
+  view event per movie, progress < 90, newest first, max 20). It is the first row on `/` for a
+  signed-in user and also on `/home`. Cards whose movie has a `progress` key get the red watched
+  bar from `_movies.html`; no other row sets that key.
 - Watch page (`recco/watch.py`): every movie card links to `/movies/<id>`. There are no video
   files: the player is the poster plus a real-time clock over `runtime` (100 min if NULL).
   A review is `ratings.review`, so it always comes with a score. Rating writes reuse query (2) of

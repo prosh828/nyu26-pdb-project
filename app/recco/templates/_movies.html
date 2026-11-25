@@ -1,6 +1,7 @@
 {# Shared movie row: title, one-line description, poster carousel.
    `row` = {key, title, description, movies: [{movie_id, title, release_year, poster_url, avg_score}]}.
-   Each card links to the watch page /movies/<movie_id>.
+   Each card links to the watch page /movies/<movie_id>. A movie with `progress`
+   (0-100, continue watching) gets a red watched bar over the bottom of its poster.
    Pages that use it link static/carousel.css and static/carousel.js. #}
 {% macro movie_row(row) %}
   <section class="row" aria-labelledby="row-{{ row.key }}">
@@ -19,9 +20,17 @@
               {% else %}
                 <span class="placeholder">{{ m.title }}</span>
               {% endif %}
+              {% if m.progress is defined %}
+                <div class="watched" role="progressbar" aria-label="Watched" aria-valuemin="0" aria-valuemax="100"
+                     aria-valuenow="{{ m.progress }}"><span style="width: {{ m.progress | int }}%"></span></div>
+              {% endif %}
             </div>
             <p class="title">{{ m.title }}</p>
-            <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
+            {% if m.progress is defined %}
+              <p class="meta">{{ m.progress }}% watched{% if m.release_year %} &middot; {{ m.release_year }}{% endif %}</p>
+            {% else %}
+              <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
+            {% endif %}
           </a>
         {% endfor %}
       </div>
