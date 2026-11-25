@@ -20,7 +20,7 @@
       {% if not current_user %}<a href="{{ url_for('auth.register') }}" style="color:#fff">Sign up</a> to get personal recommendations.{% endif %}</p>
   </section>
 
-  {% if continue_row %}{{ movie_row(continue_row) }}{% endif %}
+  {% if continue_row %}{{ movie_row(continue_row, actions="continue") }}{% endif %}
 
   {% for row in collections %}
     {{ movie_row(row) }}
@@ -33,7 +33,7 @@
   {% if current_user %}
   <script>
     // Coming back with the Back button can show a cached copy of this page;
-    // reload it so Continue Watching includes what was just watched.
+    // reload it so Continue Watching, the watchlist marks and hidden movies are current.
     window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
   </script>
   {% endif %}

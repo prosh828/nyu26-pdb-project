@@ -2,7 +2,7 @@
 `@login_required` / `@admin_required` from `recco.auth`."""
 from flask import Blueprint, render_template
 
-from . import browse, db
+from . import browse, db, lists
 from .auth import admin_required, load_current_user, login_required
 
 bp = Blueprint("pages", __name__)
@@ -23,8 +23,10 @@ def home():
     with db.get_db().cursor() as cur:
         cur.execute(SELECT_USER_GENRES_SQL, {"user_id": user["user_id"]})
         genres = [row["name"] for row in cur.fetchall()]
+    watchlist_row, hidden_row = lists.load_rows(user)
     return render_template("home.html", genres=genres,
-                           continue_row=browse.load_continue_watching(user))
+                           continue_row=browse.load_continue_watching(user),
+                           watchlist_row=watchlist_row, hidden_row=hidden_row)
 
 
 @bp.route("/admin")

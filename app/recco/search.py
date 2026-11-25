@@ -13,7 +13,7 @@ Ranking (see `search()`):
    one is chosen, otherwise the genres of the best match.
 
 The genre / minimum-average-rating filters apply to both the matches and the
-fill. Everything is read-only.
+fill. A signed-in user's hidden movies are left out of the fill. Everything is read-only.
 """
 import math
 import unicodedata
@@ -21,6 +21,7 @@ import unicodedata
 from flask import Blueprint, jsonify, render_template, request
 
 from . import db
+from .auth import load_current_user
 
 bp = Blueprint("search", __name__)
 
@@ -53,13 +54,19 @@ FILL_SQL = """
 SELECT """ + STATS_COLUMNS + """
 FROM movies m
 JOIN ratings r ON r.movie_id = m.movie_id
-WHERE 1 = 1{genre_filter}{exclude_filter}
+WHERE 1 = 1{genre_filter}{exclude_filter}{hidden_filter}
 GROUP BY m.movie_id, m.title, m.release_year, m.poster_url
 HAVING COUNT(r.user_id) >= %(fill_min_ratings)s
    AND (%(min_rating)s IS NULL OR AVG(r.score) >= %(min_rating)s)
 ORDER BY avg_score DESC, rating_count DESC, m.movie_id
 LIMIT %(limit)s
 """
+
+# The fill is a recommendation, so the signed-in user's hidden movies stay out of it
+# (title matches still show them: the user asked for that title).
+HIDDEN_FILTER = """
+  AND NOT EXISTS (SELECT 1 FROM hidden_movies h
+                  WHERE h.user_id = %(user_id)s AND h.movie_id = m.movie_id)"""
 
 GENRES_SQL = "SELECT genre_id, name FROM genres ORDER BY name"
 MOVIE_GENRES_SQL = """
@@ -105,7 +112,7 @@ def _movie(row, overlap_len=None):
 
 
 # --- search -----------------------------------------------------------------
-def search(cur, q, genre_id=None, min_rating=None):
+def search(cur, q, genre_id=None, min_rating=None, user_id=None):
     """{"matches": [...], "fill": [...], "fill_genres": [...]}, at most MAX_RESULTS movies."""
     nq = normalize(q)[:MAX_QUERY_LENGTH]
     need = required_overlap(nq)
@@ -147,7 +154,11 @@ def search(cur, q, genre_id=None, min_rating=None):
             gfilter, fparams["genre_ids"] = GENRE_FILTER, tuple(g["genre_id"] for g in fill_genres)
         if matches:
             efilter, fparams["exclude"] = EXCLUDE_FILTER, tuple(m["movie_id"] for m in matches)
-        cur.execute(FILL_SQL.format(genre_filter=gfilter, exclude_filter=efilter), fparams)
+        hfilter = ""
+        if user_id is not None:
+            hfilter, fparams["user_id"] = HIDDEN_FILTER, user_id
+        cur.execute(FILL_SQL.format(genre_filter=gfilter, exclude_filter=efilter, hidden_filter=hfilter),
+                    fparams)
         fill = [_movie(row) for row in cur.fetchall()]
     return {"matches": matches, "fill": fill, "fill_genres": [g["name"] for g in fill_genres]}
 
@@ -191,7 +202,9 @@ def _rows(q, result):
 def _run():
     with db.get_db().cursor() as cur:
         q, genre_id, min_rating, genres = _params(cur)
-        result = search(cur, q, genre_id, min_rating) if len(q) >= MIN_QUERY_LENGTH else None
+        user = load_current_user()
+        result = (search(cur, q, genre_id, min_rating, user["user_id"] if user else None)
+                  if len(q) >= MIN_QUERY_LENGTH else None)
     return {"q": q, "genre_id": genre_id, "min_rating": min_rating, "genres": genres,
             "result": result, "rows": _rows(q, result) if result else []}
 
