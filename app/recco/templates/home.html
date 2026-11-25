@@ -1,12 +1,44 @@
 {% extends "base.html" %}
+{% from "_movies.html" import movie_row, tmdb_attribution %}
 {% block title %}My home - Recco{% endblock %}
+{% block body_class %}browse{% endblock %}
+{% block main_class %}browse-main{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='carousel.css') }}">
+<style>
+  .profile { padding: 0 3rem; }
+  .profile h1 { margin: 0 0 .75rem; color: #fff; font-size: 2rem; }
+  .profile dl { max-width: 36rem; color: #d4d4d4; }
+  .profile dt { color: #a3a3a3; }
+  @media (max-width: 600px) { .profile { padding: 0 1rem; } }
+</style>
+{% endblock %}
 {% block content %}
-  <h1>Welcome, {{ current_user.username }}</h1>
-  <dl>
-    <dt>Email</dt><dd>{{ current_user.email }}</dd>
-    <dt>Role</dt><dd>{{ current_user.role }}</dd>
-    <dt>Favourite genres</dt>
-    <dd>{% if genres %}{{ genres | join(', ') }}{% else %}none{% endif %}</dd>
-  </dl>
-  <p>Ratings, watchlist and recommendations will appear here in later releases.</p>
+  <section class="profile">
+    <h1>Welcome, {{ current_user.username }}</h1>
+    <dl>
+      <dt>Email</dt><dd>{{ current_user.email }}</dd>
+      <dt>Role</dt><dd>{{ current_user.role }}</dd>
+      <dt>Favourite genres</dt>
+      <dd>{% if genres %}{{ genres | join(', ') }}{% else %}none{% endif %}</dd>
+    </dl>
+  </section>
+
+  {% if continue_row %}
+    {{ movie_row(continue_row) }}
+  {% else %}
+    <section class="row">
+      <div class="row-head">
+        <h2>Continue Watching</h2>
+        <p>Nothing in progress. Movies you start and do not finish (under 90%) show up here.
+          <a href="{{ url_for('index') }}" style="color:#fff">Browse movies</a></p>
+      </div>
+    </section>
+  {% endif %}
+
+  {{ tmdb_attribution() }}
+  <script src="{{ url_for('static', filename='carousel.js') }}"></script>
+  <script>
+    window.addEventListener("pageshow", function (e) { if (e.persisted) location.reload(); });
+  </script>
 {% endblock %}

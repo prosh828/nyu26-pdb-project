@@ -31,7 +31,8 @@ def create_app():
     @app.route("/")
     def index():
         """Public landing page: Netflix-style movie rows (see recco/browse.py)."""
-        return render_template("index.html", collections=browse.load_collections())
+        return render_template("index.html", collections=browse.load_collections(),
+                               continue_row=browse.load_continue_watching(auth.load_current_user()))
 
     @app.route("/health")
     def health():

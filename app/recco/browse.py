@@ -8,10 +8,15 @@ without touching the template; a row whose genres are missing from the data
 
 Read-only: no writes, no external API calls. `GET /api/collections` returns
 the same rows as JSON.
+
+The signed-in user's "Continue Watching" row (`load_continue_watching`) comes
+first on `/` and also appears on `/home`; its cards carry a progress bar.
+`GET /api/continue-watching` returns it as JSON.
 """
 from flask import Blueprint, jsonify
 
 from . import db
+from .auth import load_current_user
 
 bp = Blueprint("browse", __name__, url_prefix="/api")
 
@@ -89,6 +94,45 @@ def _row_movies(cur, spec, limit):
             for r in cur.fetchall()]
 
 
+# "Continue watching" = query (3) of sql/03_queries.sql (latest view event per
+# movie, progress < 90), plus the columns a movie card needs.
+FINISHED = 90   # progress >= 90 means finished (AGENTS.md business rules)
+CONTINUE_WATCHING_SQL = """
+SELECT m.movie_id, m.title, m.release_year, m.poster_url, lv.progress, lv.viewed_at AS last_viewed,
+       (SELECT AVG(r.score) FROM ratings r WHERE r.movie_id = m.movie_id) AS avg_score
+FROM  (SELECT ve.movie_id, ve.progress, ve.viewed_at, ve.event_id,
+              ROW_NUMBER() OVER (PARTITION BY ve.movie_id
+                                 ORDER BY ve.viewed_at DESC, ve.event_id DESC) AS rn
+       FROM   view_events ve
+       WHERE  ve.user_id = %(user_id)s) AS lv
+JOIN   movies m ON m.movie_id = lv.movie_id
+WHERE  lv.rn = 1
+  AND  lv.progress < %(finished)s
+ORDER BY lv.viewed_at DESC, lv.event_id DESC
+LIMIT %(limit)s
+"""
+CONTINUE_WATCHING_ROW = {
+    "key": "continue", "title": "Continue Watching",
+    "description": "Pick up right where you left off. Most recently watched first.",
+}
+
+
+def load_continue_watching(user, limit=MOVIES_PER_ROW):
+    """The signed-in user's unfinished movies as one row, or None (signed out / nothing)."""
+    if user is None:
+        return None
+    with db.get_db().cursor() as cur:
+        cur.execute(CONTINUE_WATCHING_SQL, {"user_id": user["user_id"], "finished": FINISHED,
+                                            "limit": limit})
+        movies = [{"movie_id": r["movie_id"], "title": r["title"],
+                   "release_year": r["release_year"], "poster_url": r["poster_url"],
+                   "progress": r["progress"],
+                   "last_viewed": r["last_viewed"].strftime("%Y-%m-%dT%H:%M:%SZ"),
+                   "avg_score": round(float(r["avg_score"]), 2) if r["avg_score"] is not None else None}
+                  for r in cur.fetchall()]
+    return dict(CONTINUE_WATCHING_ROW, movies=movies) if movies else None
+
+
 def load_collections(limit=MOVIES_PER_ROW):
     """Every non-empty row of COLLECTIONS, in order, with its movies."""
     rows = []
@@ -104,3 +148,13 @@ def load_collections(limit=MOVIES_PER_ROW):
 @bp.route("/collections")
 def list_collections():
     return jsonify({"collections": load_collections()})
+
+
+@bp.route("/continue-watching")
+def continue_watching_api():
+    """The signed-in user's continue-watching row as JSON (401 when signed out)."""
+    user = load_current_user()
+    if user is None:
+        return jsonify({"error": {"code": "login_required", "message": "log in to do this"}}), 401
+    row = load_continue_watching(user)
+    return jsonify({"items": row["movies"] if row else []})
