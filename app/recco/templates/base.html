@@ -23,8 +23,9 @@
     dl { display: grid; grid-template-columns: 8rem 1fr; gap: .4rem 1rem; }
     dt { font-weight: 600; }
   </style>
+  {% block head %}{% endblock %}
 </head>
-<body>
+<body class="{% block body_class %}{% endblock %}">
   <nav>
     <a href="{{ url_for('index') }}"><strong>Recco</strong></a>
     {% if current_user %}
@@ -41,7 +42,7 @@
       <a href="{{ url_for('auth.register') }}">Sign up</a>
     {% endif %}
   </nav>
-  <main>
+  <main class="{% block main_class %}{% endblock %}">
     {% with messages = get_flashed_messages(with_categories=true) %}
       {% for category, message in messages %}
         <div class="flash {{ category }}">{{ message }}</div>

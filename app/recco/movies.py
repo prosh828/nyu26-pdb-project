@@ -31,10 +31,10 @@ WHERE title LIKE %(pattern)s ESCAPE '!'
 # Cut the page out of `movies` first, then attach the genres, so the genre join
 # cannot change which movies are on the page. A movie without genres yields [null].
 LIST_MOVIES_SQL = """
-SELECT p.movie_id, p.title, p.release_year,
+SELECT p.movie_id, p.title, p.release_year, p.poster_url,
        JSON_ARRAYAGG(g.name) AS genres
 FROM (
-    SELECT movie_id, title, release_year
+    SELECT movie_id, title, release_year, poster_url
     FROM movies
     WHERE title LIKE %(pattern)s ESCAPE '!'
     ORDER BY title, movie_id
@@ -42,7 +42,7 @@ FROM (
 ) AS p
 LEFT JOIN movie_genres mg ON mg.movie_id = p.movie_id
 LEFT JOIN genres g        ON g.genre_id = mg.genre_id
-GROUP BY p.movie_id, p.title, p.release_year
+GROUP BY p.movie_id, p.title, p.release_year, p.poster_url
 ORDER BY p.title, p.movie_id
 """
 
@@ -120,7 +120,8 @@ def list_movies():
         rows = cur.fetchall()
 
     items = [{"movie_id": r["movie_id"], "title": r["title"],
-              "release_year": r["release_year"], "genres": _genre_list(r["genres"])}
+              "release_year": r["release_year"], "poster_url": r["poster_url"],
+              "genres": _genre_list(r["genres"])}
              for r in rows]
     return jsonify({
         "items": items,

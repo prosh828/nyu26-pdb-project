@@ -31,7 +31,8 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/auth.py          /register, /login, /logout + `login_required` / `admin_required` / `load_current_user`
   recco/pages.py         /home (any signed-in user) and /admin (admin only) placeholder pages
   recco/templates/       Jinja pages; `base.html` holds the role-aware navigation
-  recco/movies.py        `GET /api/movies` JSON API (title search + pagination); its SQL lives here
+  recco/movies.py        `GET /api/movies` JSON API (title search + pagination, incl. poster_url); its SQL lives here
+  recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list
   tests/                 unittest tests (read-only against the running DB), see "Running and verifying"
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
@@ -169,7 +170,11 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   in use (needs MySQL 8.0.19+). Do not use the deprecated `VALUES(col)` function.
 - Reuse the queries from `sql/03_queries.sql` when building features. If a query has to change,
   change it there too and re-check `sql/04_test_queries.sql`. The movie-browsing SQL in
-  `recco/movies.py` is deliberately not in `sql/03`, which stays at the 11 Part 2 queries.
+  `recco/movies.py` and the landing-page SQL in `recco/browse.py` are deliberately not in `sql/03`,
+  which stays at the 11 Part 2 queries.
+- Landing page rows: add, remove or reorder entries of `COLLECTIONS` in `recco/browse.py`
+  (title, English one-line description, genres, min_ratings, sort, optional min_year). Rows with no
+  matching movies are hidden automatically; ORDER BY comes only from the fixed `ORDER_BY` dict.
 - Schema changes go in `db/init/` (edit `01_schema.sql`, or add a numbered file such as
   `03_views.sql`; files run in name order). Keep `02_sample_data.sql` consistent with them.
 - New Python dependencies: add a pinned version to `app/requirements.txt`.

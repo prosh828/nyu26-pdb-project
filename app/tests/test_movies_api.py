@@ -71,7 +71,7 @@ class MoviesApiTest(unittest.TestCase):
             "total_pages": math.ceil(total / 20)})
         self.assertEqual(len(body["items"]), min(20, total))
         for item in body["items"]:
-            self.assertEqual(set(item), {"movie_id", "title", "release_year", "genres"})
+            self.assertEqual(set(item), {"movie_id", "title", "release_year", "poster_url", "genres"})
             self.assertIsInstance(item["movie_id"], int)
             self.assertIsInstance(item["genres"], list)
 
