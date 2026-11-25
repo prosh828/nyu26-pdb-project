@@ -2,7 +2,7 @@
 `@login_required` / `@admin_required` from `recco.auth`."""
 from flask import Blueprint, render_template
 
-from . import browse, db, lists
+from . import admin, browse, db, lists
 from .auth import admin_required, load_current_user, login_required
 
 bp = Blueprint("pages", __name__)
@@ -32,4 +32,4 @@ def home():
 @bp.route("/admin")
 @admin_required
 def admin_home():
-    return render_template("admin_home.html")
+    return render_template("admin/home.html", sections=admin.SECTIONS)

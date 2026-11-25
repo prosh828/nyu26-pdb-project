@@ -1,0 +1,13 @@
+{% extends "admin/_layout.html" %}
+{% block title %}Admin - Recco{% endblock %}
+{% block content %}
+  <header class="page-head">
+    <h1>Administrator home</h1>
+    <p>Signed in as <strong>{{ current_user.username }}</strong>. Choose a section.</p>
+  </header>
+  <ul class="section-cards">
+    {% for endpoint, label, purpose in sections %}
+      <li><a href="{{ url_for(endpoint) }}"><strong>{{ label }}</strong><span>{{ purpose }}</span></a></li>
+    {% endfor %}
+  </ul>
+{% endblock %}

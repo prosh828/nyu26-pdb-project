@@ -3,7 +3,7 @@ import os
 import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
-from . import auth, browse, db, lists, movielens, movies, pages, search, tmdb, watch
+from . import admin, auth, browse, db, lists, movielens, movies, pages, search, tmdb, watch
 
 
 def create_app():
@@ -28,6 +28,8 @@ def create_app():
     app.register_blueprint(search.bp)
     app.register_blueprint(watch.bp)
     app.register_blueprint(lists.bp)
+    app.register_blueprint(admin.bp)
+    app.jinja_env.globals["admin_sections"] = admin.SECTIONS      # admin sub-menu
     app.jinja_env.globals["my_list_ids"] = lists.my_list_ids   # used by the movie_row macro
 
     @app.route("/")

@@ -1,0 +1,14 @@
+{# A section that is not built yet: its purpose and the planned features. #}
+{% extends "admin/_layout.html" %}
+{% block title %}{{ label }} - Admin - Recco{% endblock %}
+{% block content %}
+  <header class="page-head">
+    <h1>{{ label }}</h1>
+    <p>{{ purpose }}</p>
+  </header>
+  <section class="panel placeholder">
+    <p class="badge">Coming soon</p>
+    <h2>Planned</h2>
+    <ul>{% for item in planned %}<li>{{ item }}</li>{% endfor %}</ul>
+  </section>
+{% endblock %}
