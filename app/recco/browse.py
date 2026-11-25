@@ -2,7 +2,7 @@
 
 Each row is one entry in COLLECTIONS: a title, a one-line description and a
 rule (genres, minimum number of ratings, sort order). The page shows every row
-that has at least one movie, so rows can be added, removed or reordered here
+that has at least one movie (minus the signed-in user's hidden movies), so rows can be added, removed or reordered here
 without touching the template; a row whose genres are missing from the data
 (e.g. the 6-genre sample DB) just disappears.
 
@@ -64,6 +64,10 @@ GENRE_FILTER = """
   AND EXISTS (SELECT 1 FROM movie_genres mg JOIN genres g ON g.genre_id = mg.genre_id
               WHERE mg.movie_id = m.movie_id AND g.name IN %(genres)s)"""
 YEAR_FILTER = "\n  AND m.release_year >= %(min_year)s"
+# The signed-in user's hidden ("not interested") movies stay out of every row.
+HIDDEN_FILTER = """
+  AND NOT EXISTS (SELECT 1 FROM hidden_movies h
+                  WHERE h.user_id = %(user_id)s AND h.movie_id = m.movie_id)"""
 
 ROW_SQL = """
 SELECT m.movie_id, m.title, m.release_year, m.poster_url,
@@ -78,8 +82,11 @@ LIMIT %(limit)s
 """
 
 
-def _row_movies(cur, spec, limit):
+def _row_movies(cur, spec, limit, user_id=None):
     filters, params = "", {"min_ratings": spec["min_ratings"], "limit": limit}
+    if user_id is not None:
+        filters += HIDDEN_FILTER
+        params["user_id"] = user_id
     if spec["genres"]:
         filters += GENRE_FILTER
         params["genres"] = tuple(spec["genres"])   # PyMySQL expands a tuple for IN
@@ -133,12 +140,15 @@ def load_continue_watching(user, limit=MOVIES_PER_ROW):
     return dict(CONTINUE_WATCHING_ROW, movies=movies) if movies else None
 
 
-def load_collections(limit=MOVIES_PER_ROW):
-    """Every non-empty row of COLLECTIONS, in order, with its movies."""
+def load_collections(user=None, limit=MOVIES_PER_ROW):
+    """Every non-empty row of COLLECTIONS, in order, with its movies.
+
+    For a signed-in user, movies they hid (hidden_movies) are left out."""
+    user_id = user["user_id"] if user else None
     rows = []
     with db.get_db().cursor() as cur:
         for spec in COLLECTIONS:
-            movies = _row_movies(cur, spec, limit)
+            movies = _row_movies(cur, spec, limit, user_id)
             if movies:
                 rows.append({"key": spec["key"], "title": spec["title"],
                              "description": spec["description"], "movies": movies})
@@ -147,7 +157,7 @@ def load_collections(limit=MOVIES_PER_ROW):
 
 @bp.route("/collections")
 def list_collections():
-    return jsonify({"collections": load_collections()})
+    return jsonify({"collections": load_collections(load_current_user())})
 
 
 @bp.route("/continue-watching")

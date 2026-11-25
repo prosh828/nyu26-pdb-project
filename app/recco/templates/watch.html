@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% from "_movies.html" import tmdb_attribution %}
+{% from "_movies.html" import icon, tmdb_attribution %}
 {% block title %}{{ movie.title }} - Recco{% endblock %}
 {% block body_class %}browse watch-page{% endblock %}
 {% block main_class %}browse-main watch-main{% endblock %}
@@ -7,6 +7,10 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='carousel.css') }}">
 <style>
   main.watch-main { padding-top: 0; }
+
+  /* --- watchlist / hide (handled by static/carousel.js) -------------------- */
+  .list-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin: .9rem 0 .2rem; }
+  .list-actions .action-btn { gap: .45rem; padding: .4rem 1rem .4rem .8rem; border-radius: 999px; font: inherit; font-size: .9rem; }
 
   /* --- player ------------------------------------------------------------ */
   .player { position: relative; background: #000; user-select: none; }
@@ -137,6 +141,18 @@
       <span class="score" id="avg-score">{% if stats.avg_score is not none %}&#9733; {{ '%.1f' | format(stats.avg_score) }}{% else %}No ratings yet{% endif %}</span>
       <span id="rating-count">{{ '{:,}'.format(stats.rating_count) }} rating{{ '' if stats.rating_count == 1 else 's' }}</span>
     </div>
+    {% set mine = my_list_ids() %}
+    {% set saved, hidden = movie.movie_id in mine.watchlist, movie.movie_id in mine.hidden %}
+    <div class="list-actions" data-movie-id="{{ movie.movie_id }}">
+      <button type="button" class="action-btn" id="watchlist-btn" data-action="watchlist"
+              aria-pressed="{{ 'true' if saved else 'false' }}" data-on-label="In my watchlist" data-off-label="Watchlist"
+              title="{{ 'Remove from my watchlist' if saved else 'Add to my watchlist' }}">
+        {{- icon('plus') }}{{ icon('check') }}<span class="label">{{ 'In my watchlist' if saved else 'Watchlist' }}</span></button>
+      <button type="button" class="action-btn" id="hide-btn" data-action="hide"
+              aria-pressed="{{ 'true' if hidden else 'false' }}" data-on-label="Hidden" data-off-label="Not interested"
+              title="{{ 'Hidden - click to show it again' if hidden else 'Not interested (hide)' }}">
+        {{- icon('thumb-down') }}<span class="label">{{ 'Hidden' if hidden else 'Not interested' }}</span></button>
+    </div>
     {% if movie.genres %}
       <div class="chips">{% for g in movie.genres %}<span class="chip">{{ g }}</span>{% endfor %}</div>
     {% endif %}
@@ -192,6 +208,7 @@
 
   {{ tmdb_attribution() }}
 
+  <script src="{{ url_for('static', filename='carousel.js') }}"></script>
   <script>
   (function () {
     // ----------------------------------------------------------- player

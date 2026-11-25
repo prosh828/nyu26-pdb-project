@@ -16,9 +16,10 @@ main.browse-main { max-width: none; margin: 0; padding: 1.5rem 0 1rem; }
   scrollbar-width: none;
 }
 .track::-webkit-scrollbar { display: none; }
-.card { flex: 0 0 9.5rem; scroll-snap-align: start; transition: transform .15s ease;
-  color: inherit; text-decoration: none; }
-.card:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+.card { position: relative; flex: 0 0 9.5rem; scroll-snap-align: start; transition: transform .15s ease, opacity .2s ease; }
+.card-link { display: block; color: inherit; text-decoration: none; }
+.card-link:focus-visible { outline: 2px solid #fff; outline-offset: 3px; border-radius: 4px; }
+.card.leaving { opacity: 0; transform: scale(.9); }
 .card:hover { transform: scale(1.06); }
 .poster {
   position: relative; width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden;
@@ -35,6 +36,28 @@ main.browse-main { max-width: none; margin: 0; padding: 1.5rem 0 1rem; }
 }
 .card .meta { margin: .1rem 0 0; font-size: .75rem; color: #8c8c8c; }
 
+/* Watchlist / hide buttons over the poster's top-right corner, shown on hover or keyboard focus. */
+.card-actions {
+  position: absolute; top: .35rem; right: .35rem; display: flex; gap: .3rem; z-index: 1;
+  opacity: 0; transition: opacity .15s ease;
+}
+.card:hover .card-actions, .card:focus-within .card-actions { opacity: 1; }
+@media (hover: none) { .card-actions { opacity: 1; } }
+.card-btn, .action-btn {
+  display: inline-flex; align-items: center; justify-content: center; padding: 0; cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, .7); border-radius: 50%; color: #fff;
+  background: rgba(20, 20, 20, .75);
+}
+.card-btn { width: 1.9rem; height: 1.9rem; }
+.card-btn:hover, .action-btn:hover { border-color: #fff; background: rgba(60, 60, 60, .9); }
+.card-btn:focus-visible, .action-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.card-btn[disabled], .action-btn[disabled] { opacity: .5; cursor: wait; }
+/* The watchlist button shows + until the movie is saved, then a check mark. */
+[data-action="watchlist"] .icon-check, [data-action="watchlist"][aria-pressed="true"] .icon-plus { display: none; }
+[data-action="watchlist"][aria-pressed="true"] .icon-check { display: block; }
+[data-action="hide"][aria-pressed="true"] { background: #e5e5e5; color: #141414; border-color: #e5e5e5; }
+.row-empty { padding: 0 3rem; margin: 0; color: #8c8c8c; font-size: .9rem; }
+
 .arrow {
   position: absolute; top: .4rem; bottom: .8rem; width: 2.6rem; border: 0; z-index: 2;
   background: rgba(20, 20, 20, .7); color: #fff; font-size: 2rem; cursor: pointer;
@@ -49,7 +72,7 @@ main.browse-main { max-width: none; margin: 0; padding: 1.5rem 0 1rem; }
 .attribution { padding: 1.5rem 3rem 0; color: #737373; font-size: .75rem; }
 
 @media (max-width: 600px) {
-  .row-head, .empty, .attribution { padding-left: 1rem; padding-right: 1rem; }
+  .row-head, .empty, .row-empty, .attribution { padding-left: 1rem; padding-right: 1rem; }
   .track { padding-left: 1rem; padding-right: 1rem; scroll-padding: 0 1rem; }
   .card { flex-basis: 7.5rem; }
   .arrow { display: none; }

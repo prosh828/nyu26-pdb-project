@@ -3,7 +3,7 @@ import os
 import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
-from . import auth, browse, db, movielens, movies, pages, search, tmdb, watch
+from . import auth, browse, db, lists, movielens, movies, pages, search, tmdb, watch
 
 
 def create_app():
@@ -27,12 +27,15 @@ def create_app():
     app.register_blueprint(browse.bp)
     app.register_blueprint(search.bp)
     app.register_blueprint(watch.bp)
+    app.register_blueprint(lists.bp)
+    app.jinja_env.globals["my_list_ids"] = lists.my_list_ids   # used by the movie_row macro
 
     @app.route("/")
     def index():
         """Public landing page: Netflix-style movie rows (see recco/browse.py)."""
-        return render_template("index.html", collections=browse.load_collections(),
-                               continue_row=browse.load_continue_watching(auth.load_current_user()))
+        user = auth.load_current_user()
+        return render_template("index.html", collections=browse.load_collections(user),
+                               continue_row=browse.load_continue_watching(user))
 
     @app.route("/health")
     def health():

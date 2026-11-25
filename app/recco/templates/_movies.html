@@ -1,37 +1,91 @@
 {# Shared movie row: title, one-line description, poster carousel.
-   `row` = {key, title, description, movies: [{movie_id, title, release_year, poster_url, avg_score}]}.
+   `row` = {key, title, description, movies: [{movie_id, title, release_year, poster_url, avg_score}],
+            optional empty: text shown when the row has (or is left with) no movies}.
    Each card links to the watch page /movies/<movie_id>. A movie with `progress`
    (0-100, continue watching) gets a red watched bar over the bottom of its poster.
+   `actions` picks the buttons that appear over the poster's top-right corner on hover
+   (static/carousel.js sends them to recco/lists.py):
+     "browse"    + (add to / remove from watchlist) and thumb down (hide)
+     "continue"  + only
+     "watchlist" - (remove from watchlist)      "hidden"  thumb up (un-hide)
+     none        no buttons
    Pages that use it link static/carousel.css and static/carousel.js. #}
-{% macro movie_row(row) %}
-  <section class="row" aria-labelledby="row-{{ row.key }}">
+{% macro icon(name) -%}
+  <svg class="icon icon-{{ name }}" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" focusable="false"
+       fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    {%- if name == 'plus' %}<path d="M12 5v14M5 12h14"/>
+    {%- elif name == 'check' %}<path d="M5 12.5l4.5 4.5L19 7.5"/>
+    {%- elif name == 'minus' %}<path d="M5 12h14"/>
+    {%- elif name == 'thumb-down' %}<path d="M10 15v4a3 3 0 0 0 3 3l4-9V2H5.72a2 2 0 0 0-2 1.7l-1.38 9a2 2 0 0 0 2 2.3zM17 2h2.67A2.31 2.31 0 0 1 22 4v7a2.31 2.31 0 0 1-2.33 2H17"/>
+    {%- elif name == 'thumb-up' %}<path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/>
+    {%- endif %}</svg>
+{%- endmacro %}
+
+{% macro watchlist_button(movie, saved, cls="card-btn") -%}
+  <button type="button" class="{{ cls }}" data-action="watchlist" aria-pressed="{{ 'true' if saved else 'false' }}"
+          aria-label="Watchlist: {{ movie.title }}" title="{{ 'Remove from my watchlist' if saved else 'Add to my watchlist' }}">
+    {{- icon('plus') }}{{ icon('check') -}}
+  </button>
+{%- endmacro %}
+
+{% macro hide_button(movie, hidden=False, cls="card-btn") -%}
+  <button type="button" class="{{ cls }}" data-action="hide" aria-pressed="{{ 'true' if hidden else 'false' }}"
+          aria-label="Not interested: {{ movie.title }}" title="{{ 'Hidden - click to show it again' if hidden else 'Not interested (hide)' }}">
+    {{- icon('thumb-down') -}}
+  </button>
+{%- endmacro %}
+
+{% macro movie_row(row, actions="browse") %}
+  {% set mine = my_list_ids() if actions else none %}
+  <section class="row" aria-labelledby="row-{{ row.key }}" data-actions="{{ actions or '' }}">
     <div class="row-head">
       <h2 id="row-{{ row.key }}">{{ row.title }}</h2>
       <p>{{ row.description }}</p>
     </div>
-    <div class="carousel">
+    {% if row.empty is defined %}
+      <p class="row-empty"{% if row.movies %} hidden{% endif %}>{{ row.empty }}</p>
+    {% endif %}
+    <div class="carousel"{% if not row.movies %} hidden{% endif %}>
       <button class="arrow prev" type="button" aria-label="Scroll {{ row.title }} left" disabled>&#8249;</button>
       <div class="track">
         {% for m in row.movies %}
-          <a class="card" href="{{ url_for('watch.watch_page', movie_id=m.movie_id) }}">
-            <div class="poster">
-              {% if m.poster_url %}
-                <img src="{{ m.poster_url }}" alt="{{ m.title }} poster" loading="lazy">
-              {% else %}
-                <span class="placeholder">{{ m.title }}</span>
-              {% endif %}
+          <div class="card" data-movie-id="{{ m.movie_id }}">
+            <a class="card-link" href="{{ url_for('watch.watch_page', movie_id=m.movie_id) }}">
+              <div class="poster">
+                {% if m.poster_url %}
+                  <img src="{{ m.poster_url }}" alt="{{ m.title }} poster" loading="lazy">
+                {% else %}
+                  <span class="placeholder">{{ m.title }}</span>
+                {% endif %}
+                {% if m.progress is defined %}
+                  <div class="watched" role="progressbar" aria-label="Watched" aria-valuemin="0" aria-valuemax="100"
+                       aria-valuenow="{{ m.progress }}"><span style="width: {{ m.progress | int }}%"></span></div>
+                {% endif %}
+              </div>
+              <p class="title">{{ m.title }}</p>
               {% if m.progress is defined %}
-                <div class="watched" role="progressbar" aria-label="Watched" aria-valuemin="0" aria-valuemax="100"
-                     aria-valuenow="{{ m.progress }}"><span style="width: {{ m.progress | int }}%"></span></div>
+                <p class="meta">{{ m.progress }}% watched{% if m.release_year %} &middot; {{ m.release_year }}{% endif %}</p>
+              {% else %}
+                <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
               {% endif %}
-            </div>
-            <p class="title">{{ m.title }}</p>
-            {% if m.progress is defined %}
-              <p class="meta">{{ m.progress }}% watched{% if m.release_year %} &middot; {{ m.release_year }}{% endif %}</p>
-            {% else %}
-              <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
+            </a>
+            {% if actions %}
+              <div class="card-actions">
+                {% if actions in ("browse", "continue") %}
+                  {{ watchlist_button(m, m.movie_id in mine.watchlist) }}
+                {% endif %}
+                {% if actions == "browse" %}
+                  {{ hide_button(m, m.movie_id in mine.hidden) }}
+                {% elif actions == "watchlist" %}
+                  <button type="button" class="card-btn" data-action="unwatch" aria-label="Remove {{ m.title }} from my watchlist"
+                          title="Remove from my watchlist">{{ icon('minus') }}</button>
+                {% elif actions == "hidden" %}
+                  <button type="button" class="card-btn" data-action="unhide" aria-label="Show {{ m.title }} again"
+                          title="Show in recommendations again">{{ icon('thumb-up') }}</button>
+                {% endif %}
+              </div>
             {% endif %}
-          </a>
+          </div>
         {% endfor %}
       </div>
       <button class="arrow next" type="button" aria-label="Scroll {{ row.title }} right">&#8250;</button>

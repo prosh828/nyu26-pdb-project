@@ -25,7 +25,7 @@
   </section>
 
   {% if continue_row %}
-    {{ movie_row(continue_row) }}
+    {{ movie_row(continue_row, actions="continue") }}
   {% else %}
     <section class="row">
       <div class="row-head">
@@ -35,6 +35,9 @@
       </div>
     </section>
   {% endif %}
+
+  {{ movie_row(watchlist_row, actions="watchlist") }}
+  {{ movie_row(hidden_row, actions="hidden") }}
 
   {{ tmdb_attribution() }}
   <script src="{{ url_for('static', filename='carousel.js') }}"></script>

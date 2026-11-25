@@ -36,6 +36,7 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
                          Continue Watching row (query (3)) for `/` and `/home` + `GET /api/continue-watching`
   recco/search.py        title search: `/search` page, `/search/results` (live-update HTML fragment), `GET /api/search`
   recco/watch.py         watch page `/movies/<id>` (simulated player) + movie / reviews / rating / progress JSON API
+  recco/lists.py         watchlist + hidden movies JSON API (`/api/watchlist`, `/api/hidden`); `my_list_ids()` Jinja global
   recco/templates/_movies.html  shared `movie_row` carousel macro (+ static/carousel.css, static/carousel.js)
   tests/                 unittest tests (read-only against the running DB), see "Running and verifying"
 db/init/                 SQL run automatically ONLY when the DB volume is empty
@@ -188,6 +189,14 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   unless it was >= 90 (finished). JSON write endpoints (`PUT`/`DELETE /api/movies/<id>/rating`,
   `POST /api/movies/<id>/progress`) return 401 without login and 415 without a JSON body; the
   JSON-only rule is what protects them from cross-site form posts (there is no CSRF token).
+- Watchlist / hidden (`recco/lists.py`): `PUT` / `DELETE /api/watchlist/<id>` and `/api/hidden/<id>`
+  (401 without login, 404 unknown movie, idempotent, no body; PUT/DELETE cannot come from a cross-site
+  form). A movie is on the watchlist or hidden, never both: each PUT deletes it from the other table in
+  the same transaction. Hidden movies are excluded (NOT EXISTS on `hidden_movies`) from the `/`
+  COLLECTIONS rows and from the search fill; search title matches, Continue Watching and the watch page
+  still show them. `movie_row(row, actions=...)` draws the buttons over each poster ("browse": + and
+  thumb down, "continue": + only, "watchlist": -, "hidden": thumb up); `static/carousel.js` sends the
+  clicks. `/home` shows the Continue Watching, My Watchlist and Hidden Movies rows.
 - Movie lists on public pages use the `movie_row` macro from `templates/_movies.html`; do not copy
   the card markup. After inserting rows with JS, call `window.initCarousels(element)`.
 - Search (`recco/search.py`): a title matches when it shares a run of at least
