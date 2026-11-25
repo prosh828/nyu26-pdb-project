@@ -1,0 +1,51 @@
+/* Shared Netflix-style look: dark page, movie rows with a poster carousel.
+   Used by index.html (/) and search.html (/search) through templates/_movies.html. */
+body.browse { background: #141414; color: #e5e5e5; }
+body.browse nav { background: #000; }
+main.browse-main { max-width: none; margin: 0; padding: 1.5rem 0 1rem; }
+
+.row { margin: 1.75rem 0; }
+.row-head { padding: 0 3rem; }
+.row-head h2 { margin: 0; font-size: 1.35rem; color: #fff; }
+.row-head p { margin: .2rem 0 .6rem; color: #a3a3a3; font-size: .9rem; }
+
+.carousel { position: relative; }
+.track {
+  display: flex; gap: .6rem; overflow-x: auto; scroll-behavior: smooth;
+  scroll-snap-type: x mandatory; padding: .4rem 3rem .8rem; scroll-padding: 0 3rem;
+  scrollbar-width: none;
+}
+.track::-webkit-scrollbar { display: none; }
+.card { flex: 0 0 9.5rem; scroll-snap-align: start; transition: transform .15s ease; }
+.card:hover { transform: scale(1.06); }
+.poster {
+  width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden;
+  background: #2a2a2a; display: flex; align-items: center; justify-content: center;
+}
+.poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.poster .placeholder { padding: .75rem; text-align: center; color: #8c8c8c; font-size: .85rem; }
+.card .title {
+  margin: .4rem 0 0; font-size: .85rem; color: #e5e5e5; line-height: 1.25;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.card .meta { margin: .1rem 0 0; font-size: .75rem; color: #8c8c8c; }
+
+.arrow {
+  position: absolute; top: .4rem; bottom: .8rem; width: 2.6rem; border: 0; z-index: 2;
+  background: rgba(20, 20, 20, .7); color: #fff; font-size: 2rem; cursor: pointer;
+  opacity: 0; transition: opacity .15s ease;
+}
+.arrow.prev { left: 0; }
+.arrow.next { right: 0; }
+.carousel:hover .arrow, .arrow:focus-visible { opacity: 1; }
+.arrow[disabled] { visibility: hidden; }
+
+.empty { padding: 0 3rem; color: #b3b3b3; }
+.attribution { padding: 1.5rem 3rem 0; color: #737373; font-size: .75rem; }
+
+@media (max-width: 600px) {
+  .row-head, .empty, .attribution { padding-left: 1rem; padding-right: 1rem; }
+  .track { padding-left: 1rem; padding-right: 1rem; scroll-padding: 0 1rem; }
+  .card { flex-basis: 7.5rem; }
+  .arrow { display: none; }
+}

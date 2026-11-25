@@ -1,0 +1,18 @@
+{# Search results: the /search page body, also returned alone by /search/results
+   so the page can swap it in while the user types. #}
+{% from "_movies.html" import movie_row %}
+<div id="search-results">
+  {% if q | length < min_query_length %}
+    <p class="empty">Type at least {{ min_query_length }} letters of a movie title to search.</p>
+  {% else %}
+    {% if not result.matches %}
+      <p class="empty">No titles match "{{ q }}"{% if genre_id or min_rating %} with these filters{% endif %}.</p>
+    {% endif %}
+    {% for row in rows %}
+      {{ movie_row(row) }}
+    {% endfor %}
+    {% if not rows %}
+      <p class="empty">Nothing to show. Try removing a filter.</p>
+    {% endif %}
+  {% endif %}
+</div>

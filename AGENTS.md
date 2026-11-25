@@ -33,6 +33,8 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/templates/       Jinja pages; `base.html` holds the role-aware navigation
   recco/movies.py        `GET /api/movies` JSON API (title search + pagination, incl. poster_url); its SQL lives here
   recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list
+  recco/search.py        title search: `/search` page, `/search/results` (live-update HTML fragment), `GET /api/search`
+  recco/templates/_movies.html  shared `movie_row` carousel macro (+ static/carousel.css, static/carousel.js)
   tests/                 unittest tests (read-only against the running DB), see "Running and verifying"
 db/init/                 SQL run automatically ONLY when the DB volume is empty
   01_schema.sql          10 tables (source of truth for the schema)
@@ -172,6 +174,14 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   change it there too and re-check `sql/04_test_queries.sql`. The movie-browsing SQL in
   `recco/movies.py` and the landing-page SQL in `recco/browse.py` are deliberately not in `sql/03`,
   which stays at the 11 Part 2 queries.
+- Movie lists on public pages use the `movie_row` macro from `templates/_movies.html`; do not copy
+  the card markup. After inserting rows with JS, call `window.initCarousels(element)`.
+- Search (`recco/search.py`): a title matches when it shares a run of at least
+  max(2, ceil(2/3 x query length)) characters with the query (case, accents and spaces ignored),
+  ranked by that overlap; at most 20 results, topped up with the highest-rated movies (>= 20 ratings)
+  of the genre filter or of the best match's genres. Genre / minimum-average filters apply to both.
+  The nav search box (base.html) jumps to `/search` from the 2nd letter; on `/search` it calls
+  `window.reccoLiveSearch` and the results refresh while typing.
 - Landing page rows: add, remove or reorder entries of `COLLECTIONS` in `recco/browse.py`
   (title, English one-line description, genres, min_ratings, sort, optional min_year). Rows with no
   matching movies are hidden automatically; ORDER BY comes only from the fixed `ORDER_BY` dict.

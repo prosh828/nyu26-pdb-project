@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% from "_movies.html" import tmdb_attribution %}
+{% block title %}{% if q %}{{ q }} - {% endif %}Search - Recco{% endblock %}
+{% block body_class %}browse search-page{% endblock %}
+{% block main_class %}browse-main{% endblock %}
+{% block head %}
+<link rel="stylesheet" href="{{ url_for('static', filename='carousel.css') }}">
+<style>
+  .filters { display: flex; flex-wrap: wrap; gap: .75rem 1.5rem; align-items: end; padding: 0 3rem; }
+  .filters h1 { flex-basis: 100%; margin: 0 0 .25rem; font-size: 1.6rem; color: #fff; }
+  .filters label { margin: 0; font-weight: 600; font-size: .85rem; color: #b3b3b3; }
+  .filters select {
+    display: block; margin-top: .3rem; min-width: 11rem; padding: .45rem .5rem;
+    background: #222; color: #e5e5e5; border: 1px solid #444; border-radius: 4px; font: inherit;
+  }
+  .filters .reset { color: #b3b3b3; font-size: .85rem; padding-bottom: .5rem; }
+  #search-results { min-height: 12rem; transition: opacity .1s ease; }
+  #search-results.loading { opacity: .5; }
+  #search-results > .empty:first-child { margin-top: 1.75rem; }
+  @media (max-width: 600px) { .filters { padding-left: 1rem; padding-right: 1rem; } }
+</style>
+{% endblock %}
+
+{% block content %}
+  <form class="filters" id="search-filters" action="{{ url_for('search.search_page') }}" method="get">
+    <h1>Search movies</h1>
+    <input type="hidden" name="q" value="{{ q }}">
+    <label>Genre
+      <select name="genre">
+        <option value="">All genres</option>
+        {% for g in genres %}
+          <option value="{{ g.genre_id }}" {% if g.genre_id == genre_id %}selected{% endif %}>{{ g.name }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Average rating
+      <select name="min_rating">
+        <option value="">Any rating</option>
+        {% for r in rating_options %}
+          <option value="{{ r }}" {% if r == min_rating %}selected{% endif %}>&#9733; {{ r }} or higher</option>
+        {% endfor %}
+      </select>
+    </label>
+    <noscript><button type="submit">Apply</button></noscript>
+    <a class="reset" href="{{ url_for('search.search_page', q=q) }}">Clear filters</a>
+  </form>
+
+  {% include "_search_results.html" %}
+
+  {{ tmdb_attribution() }}
+  <script src="{{ url_for('static', filename='carousel.js') }}"></script>
+  <script>
+    // Live search: the nav search box (base.html) calls reccoLiveSearch on every
+    // keystroke; filter changes refresh too. The server renders the rows
+    // (/search/results) and we swap them in, so there is one template for both.
+    (function () {
+      var form = document.getElementById("search-filters");
+      var resultsUrl = "{{ url_for('search.search_results') }}";
+      var pageUrl = "{{ url_for('search.search_page') }}";
+      var latest = 0, timer = null;
+
+      function query() {
+        var params = new URLSearchParams();
+        ["q", "genre", "min_rating"].forEach(function (k) {
+          var value = form.elements[k].value;
+          if (value) params.set(k, value);
+        });
+        return params.toString();
+      }
+
+      function refresh() {
+        var qs = query(), ticket = ++latest;
+        var box = document.getElementById("search-results");
+        box.classList.add("loading");
+        history.replaceState(null, "", pageUrl + (qs ? "?" + qs : ""));
+        fetch(resultsUrl + (qs ? "?" + qs : ""), { headers: { "Accept": "text/html" } })
+          .then(function (resp) { return resp.text(); })
+          .then(function (html) {
+            if (ticket !== latest) return;          // a newer keystroke already won
+            var holder = document.createElement("div");
+            holder.innerHTML = html;                // server-rendered, Jinja-escaped
+            var fresh = holder.querySelector("#search-results");
+            box.replaceWith(fresh);
+            window.initCarousels(fresh);
+            document.title = (form.q.value ? form.q.value + " - " : "") + "Search - Recco";
+          })
+          .catch(function () { box.classList.remove("loading"); });
+      }
+
+      function schedule(delay) {
+        clearTimeout(timer);
+        timer = setTimeout(refresh, delay);
+      }
+
+      window.reccoLiveSearch = function (value) {
+        form.q.value = value.trim();
+        schedule(150);
+      };
+      form.addEventListener("change", function () { schedule(0); });
+      form.addEventListener("submit", function (e) { e.preventDefault(); schedule(0); });
+      form.querySelector(".reset").addEventListener("click", function (e) {
+        e.preventDefault();
+        form.genre.value = "";
+        form.min_rating.value = "";
+        schedule(0);
+      });
+    })();
+  </script>
+{% endblock %}

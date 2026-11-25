@@ -10,6 +10,16 @@
     nav a, nav button { color: #fff; text-decoration: none; background: none; border: 0; font: inherit; cursor: pointer; padding: 0; }
     nav .spacer { flex: 1; }
     nav form { margin: 0; }
+    /* Search tab: a "Search" link that turns into a magnifier + input box. */
+    nav .nav-search { display: flex; align-items: center; }
+    nav .search-box { display: none; align-items: center; gap: .4rem; margin: 0; font-weight: 400;
+      padding: .3rem .55rem; border: 1px solid #fff; border-radius: 3px; background: rgba(0, 0, 0, .75); }
+    nav .nav-search.open .search-box { display: flex; }
+    nav .nav-search.open .search-tab { display: none; }
+    nav .search-box svg { flex: none; }
+    nav .search-box input { width: 13rem; max-width: 40vw; border: 0; outline: 0; padding: 0;
+      background: transparent; color: #fff; font: inherit; }
+    nav .search-box input::placeholder { color: #a3a3a3; }
     main { max-width: 36rem; margin: 2rem auto; padding: 0 1rem; }
     label { display: block; margin-top: 1rem; font-weight: 600; }
     input[type=text], input[type=email], input[type=password] { width: 100%; box-sizing: border-box; padding: .5rem; margin-top: .25rem; }
@@ -33,11 +43,21 @@
         <a href="{{ url_for('pages.admin_home') }}">Admin</a>
       {% endif %}
       <a href="{{ url_for('pages.home') }}">My home</a>
-      <span class="spacer"></span>
+    {% endif %}
+    {% set on_search = request.endpoint == 'search.search_page' %}
+    <form class="nav-search{% if on_search %} open{% endif %}" action="{{ url_for('search.search_page') }}" method="get" role="search">
+      <button type="button" class="search-tab" aria-controls="nav-search-input">Search</button>
+      <label class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+        <input type="search" id="nav-search-input" name="q" placeholder="Titles" autocomplete="off"
+               aria-label="Search movies by title" value="{{ q if on_search and q else '' }}">
+      </label>
+    </form>
+    <span class="spacer"></span>
+    {% if current_user %}
       <span>{{ current_user.username }} ({{ current_user.role }})</span>
       <form method="post" action="{{ url_for('auth.logout') }}"><button type="submit">Log out</button></form>
     {% else %}
-      <span class="spacer"></span>
       <a href="{{ url_for('auth.login') }}">Log in</a>
       <a href="{{ url_for('auth.register') }}">Sign up</a>
     {% endif %}
@@ -50,5 +70,37 @@
     {% endwith %}
     {% block content %}{% endblock %}
   </main>
+  <script>
+    // Nav search tab. Clicking "Search" opens the box; from 2 letters on it goes to
+    // /search, where search.html defines window.reccoLiveSearch and the results
+    // follow every keystroke without reloading the page.
+    (function () {
+      var form = document.querySelector("nav .nav-search");
+      if (!form) return;
+      var tab = form.querySelector(".search-tab");
+      var input = form.querySelector("input");
+      var MIN = 2;                                   // search.MIN_QUERY_LENGTH
+      tab.addEventListener("click", function () { form.classList.add("open"); input.focus(); });
+      input.addEventListener("blur", function () {
+        if (!input.value.trim() && !window.reccoLiveSearch) form.classList.remove("open");
+      });
+      input.addEventListener("keydown", function (e) {
+        if (e.key === "Escape" && !window.reccoLiveSearch) { input.value = ""; input.blur(); }
+      });
+      input.addEventListener("input", function () {
+        var value = input.value.trim();
+        if (window.reccoLiveSearch) { window.reccoLiveSearch(value); return; }
+        if (value.length >= MIN) location.href = form.action + "?q=" + encodeURIComponent(value);
+      });
+      form.addEventListener("submit", function (e) {
+        if (window.reccoLiveSearch) { e.preventDefault(); window.reccoLiveSearch(input.value); }
+        else if (input.value.trim().length < MIN) { e.preventDefault(); }
+      });
+      if (form.classList.contains("open")) {          // on /search: keep typing where you left off
+        input.focus();
+        input.setSelectionRange(input.value.length, input.value.length);
+      }
+    })();
+  </script>
 </body>
 </html>
