@@ -29,7 +29,10 @@ app/                     Flask app (Dockerfile, requirements.txt, recco/ package
   recco/movielens.py     `flask import-movielens`: download + run db/import/movielens.sql
   recco/tmdb.py          `flask fetch-posters`: fill movies.poster_url / runtime from TMDB
   recco/auth.py          /register, /login, /logout + `login_required` / `admin_required` / `load_current_user`
-  recco/pages.py         /home (any signed-in user) and /admin (admin only) placeholder pages
+  recco/pages.py         /home (any signed-in user) and /admin (admin only) overview
+  recco/admin.py         admin sub-menu pages (`SECTIONS`): /admin/stats (+ `GET /api/admin/stats`) and the
+                         placeholder pages /admin/catalog, /admin/data, /admin/recommendations
+  recco/templates/admin/ admin pages; `_layout.html` draws the sub-menu (+ static/admin.css, static/admin-charts.js)
   recco/templates/       Jinja pages; `base.html` holds the role-aware navigation
   recco/movies.py        `GET /api/movies` JSON API (title search + pagination, incl. poster_url); its SQL lives here
   recco/browse.py        public landing page `/` rows + `GET /api/collections`; rows are the COLLECTIONS list;
@@ -197,6 +200,15 @@ All other FKs are `ON DELETE CASCADE`. Every timestamp is `TIMESTAMP` stored and
   still show them. `movie_row(row, actions=...)` draws the buttons over each poster ("browse": + and
   thumb down, "continue": + only, "watchlist": -, "hidden": thumb up); `static/carousel.js` sends the
   clicks. `/home` shows the Continue Watching, My Watchlist and Hidden Movies rows.
+- Admin area (`recco/admin.py`): every route uses `@admin_required`. Pages extend `admin/_layout.html`,
+  which fills base.html's `subnav` block with the sub-menu built from `SECTIONS` (add a section there).
+  Statistics are read-only aggregates with their SQL in `admin.py`; `?days=7|30|90|365|all` (default 30)
+  limits active users and viewing numbers, ratings/reviews are all-time. Definitions: active user = rated
+  or watched in the period; play = distinct (user, movie, day) in `view_events` (the player writes several
+  events per play); watch time = furthest progress x runtime (100 min if NULL) per (user, movie);
+  completion = share of (user, movie) pairs whose furthest progress is >= 90. Charts are drawn by
+  `static/admin-charts.js` from `data-points` JSON, each with a table view; colors are categorical
+  slots 1-2 of the data-viz default palette (blue, orange = finished).
 - Movie lists on public pages use the `movie_row` macro from `templates/_movies.html`; do not copy
   the card markup. After inserting rows with JS, call `window.initCarousels(element)`.
 - Search (`recco/search.py`): a title matches when it shares a run of at least

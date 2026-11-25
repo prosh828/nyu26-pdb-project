@@ -1,0 +1,157 @@
+{% extends "admin/_layout.html" %}
+{% block title %}Statistics - Admin - Recco{% endblock %}
+
+{% macro num(value) -%}{{ '{:,}'.format(value) if value is not none else '–' }}{%- endmacro %}
+
+{% macro tile(label, value, note=none) %}
+  <div class="tile">
+    <p class="tile-label">{{ label }}</p>
+    <p class="tile-value">{{ value }}</p>
+    {% if note %}<p class="tile-note">{{ note }}</p>{% endif %}
+  </div>
+{% endmacro %}
+
+{# A chart drawn by static/admin-charts.js from `points` ([{label, value, ...}]),
+   with the same numbers in a table underneath (works without JavaScript).
+   kind: "column" (vertical) or "bar" (horizontal, sorted as given).
+   extra: optional (key, header, suffix) shown in the tooltip and the table. #}
+{% macro chart(id, title, subtitle, points, kind="column", value_name="Count", format="int",
+               extra=none, highlight_from=none, legend=none, empty="No data in this period.") %}
+  <figure class="panel chart-panel" aria-labelledby="{{ id }}-title">
+    <figcaption>
+      <h3 id="{{ id }}-title">{{ title }}</h3>
+      <p>{{ subtitle }}</p>
+    </figcaption>
+    {% if points and points | map(attribute='value') | select | list %}
+      {% if legend %}
+        <ul class="legend">
+          {% for name, slot in legend %}<li><span class="key series-{{ slot }}"></span>{{ name }}</li>{% endfor %}
+        </ul>
+      {% endif %}
+      <div class="chart" id="{{ id }}" data-kind="{{ kind }}" data-format="{{ format }}"
+           data-value-name="{{ value_name }}" data-points='{{ points | tojson }}'
+           {% if extra %}data-extra-key="{{ extra[0] }}" data-extra-name="{{ extra[1] }}"{% endif %}
+           {% if highlight_from is not none %}data-highlight-from="{{ highlight_from }}"{% endif %}
+           role="img" aria-label="{{ title }} chart; the table below has every value"></div>
+      <details class="table-view">
+        <summary>Show table</summary>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th scope="col">{{ 'Name' if kind == 'bar' else 'Period' }}</th><th scope="col" class="n">{{ value_name }}</th>
+              {% if extra %}<th scope="col" class="n">{{ extra[1] }}</th>{% endif %}</tr></thead>
+            <tbody>
+              {% for p in points %}
+                <tr><td>{{ p.label }}</td>
+                  <td class="n">{{ '%.2f' | format(p.value) if format == 'score' else num(p.value) }}</td>
+                  {% if extra %}<td class="n">{{ num(p[extra[0]]) }}</td>{% endif %}</tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    {% else %}
+      <p class="no-data">{{ empty }}</p>
+    {% endif %}
+  </figure>
+{% endmacro %}
+
+{% block content %}
+  {% set t, a, w = stats.totals, stats.activity, stats.window %}
+  <header class="page-head stats-head">
+    <div>
+      <h1>Statistics</h1>
+      <p>Ratings and reviews are all-time. Active users and the viewing numbers follow the period on the right.</p>
+    </div>
+    <div class="period" role="group" aria-label="Period">
+      {% for key, label in windows.items() %}
+        <a href="{{ url_for('admin.stats', days=key) }}"{% if key == w.key %} aria-current="true"{% endif %}>{{ label }}</a>
+      {% endfor %}
+    </div>
+  </header>
+
+  {# ---------------------------------------------------------------- overview #}
+  <section aria-labelledby="overview-title">
+    <h2 id="overview-title" class="section-title">Overview</h2>
+    <div class="tiles">
+      {{ tile("Users", num(t.users), num(t.movies) ~ " movies in the catalogue") }}
+      {{ tile("Active users", num(a.active_users), w.label ~ " · rated or watched") }}
+      {{ tile("Ratings", num(t.ratings), "All time") }}
+      {{ tile("Average rating", ('%.2f' | format(t.avg_score)) if t.avg_score is not none else '–', "Out of 5.0, all time") }}
+      {{ tile("Reviews", num(t.reviews),
+              (('%.3f' | format(t.review_share)) ~ "% of ratings have text") if t.review_share is not none else none) }}
+      {{ tile("Plays", num(a.plays), w.label ~ " · one user, one movie, one day") }}
+      {{ tile("Average watch time", (('%.1f' | format(a.avg_watch_minutes)) ~ " min") if a.avg_watch_minutes is not none else '–',
+              (('%.0f' | format(a.avg_progress)) ~ "% of the runtime on average") if a.avg_progress is not none else w.label) }}
+      {{ tile("Completion rate", (('%.1f' | format(a.completion_rate)) ~ "%") if a.completion_rate is not none else '–',
+              num(a.finished_pairs) ~ " of " ~ num(a.watched_pairs) ~ " started movies reached " ~ finished ~ "%") }}
+    </div>
+  </section>
+
+  {# ------------------------------------------------------- ratings & reviews #}
+  <section aria-labelledby="ratings-title">
+    <h2 id="ratings-title" class="section-title">Ratings &amp; reviews <span>all time</span></h2>
+    <div class="grid">
+      {{ chart("score-dist", "Rating distribution", "Number of ratings at each score (0.5 to 5.0).",
+               stats.score_distribution, value_name="Ratings") }}
+      {{ chart("ratings-year", "Ratings per year", "When ratings were given. The gap is the time between the MovieLens export and Recco.",
+               stats.ratings_by_year, value_name="Ratings") }}
+      {{ chart("genre-avg", "Average rating by genre",
+               "Mean score of every rating on a movie in the genre (genres with at least " ~ genre_min_ratings ~ " ratings).",
+               stats.genre_averages, kind="bar", value_name="Average", format="score", extra=("count", "Ratings")) }}
+      {% set review_years = stats.reviews_by_year | selectattr('value') | list %}
+      {{ chart("reviews-year", "Reviews per year", "Ratings that came with review text, from the first year with a review.",
+               stats.reviews_by_year[stats.reviews_by_year.index(review_years[0]):] if review_years else [],
+               value_name="Reviews", empty="No reviews yet.") }}
+    </div>
+  </section>
+
+  {# ------------------------------------------------------------------- users #}
+  <section aria-labelledby="users-title">
+    <h2 id="users-title" class="section-title">Users <span>all time</span></h2>
+    <div class="grid">
+      {{ chart("active-year", "Active users per year", "Distinct users who rated or watched at least one movie that year.",
+               stats.active_users_by_year, value_name="Active users") }}
+    </div>
+  </section>
+
+  {# ----------------------------------------------------------------- viewing #}
+  <section aria-labelledby="viewing-title">
+    <h2 id="viewing-title" class="section-title">Viewing <span>{{ w.label | lower }}</span></h2>
+    <div class="grid">
+      {{ chart("plays", "Plays per " ~ stats.plays.unit,
+               "A play is one user watching one movie on one day (the player saves progress many times per play).",
+               stats.plays.points, value_name="Plays",
+               extra=("viewers", "Viewers") if stats.plays.unit == "day" else none) }}
+
+      <figure class="panel chart-panel" aria-labelledby="completion-title">
+        <figcaption>
+          <h3 id="completion-title">Completion</h3>
+          <p>Started movies (one user, one movie) by the furthest point reached. Finished = {{ finished }}% or more.</p>
+        </figcaption>
+        {% if a.watched_pairs %}
+          {% set open_pairs = a.watched_pairs - a.finished_pairs %}
+          <p class="hero">{{ '%.1f' | format(a.completion_rate) }}%<span> finished</span></p>
+          <div class="segbar" role="img" aria-label="{{ a.finished_pairs }} finished, {{ open_pairs }} not finished">
+            {% if open_pairs %}<span class="series-1" style="flex-grow: {{ open_pairs }}"></span>{% endif %}
+            {% if a.finished_pairs %}<span class="series-2" style="flex-grow: {{ a.finished_pairs }}"></span>{% endif %}
+          </div>
+          <ul class="legend">
+            <li><span class="key series-1"></span>Not finished <strong>{{ num(open_pairs) }}</strong></li>
+            <li><span class="key series-2"></span>Finished <strong>{{ num(a.finished_pairs) }}</strong></li>
+          </ul>
+        {% else %}
+          <p class="no-data">No plays in this period.</p>
+        {% endif %}
+      </figure>
+
+      {{ chart("progress", "How far viewers got", "Started movies by the furthest point reached, in 10% steps.",
+               stats.progress_buckets, value_name="Movies started", highlight_from=9,
+               legend=[("Not finished", 1), ("Finished (90%+)", 2)], empty="No plays in this period.") }}
+      {{ chart("top-played", "Most played", "The " ~ top_limit ~ " movies with the most plays.",
+               stats.top_played, kind="bar", value_name="Plays", extra=("viewers", "Viewers"),
+               empty="No plays in this period.") }}
+    </div>
+  </section>
+
+  <script src="{{ url_for('static', filename='admin-charts.js') }}"></script>
+{% endblock %}
