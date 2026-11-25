@@ -3,7 +3,7 @@ import os
 import click
 from flask import Flask, render_template
 from werkzeug.security import generate_password_hash
-from . import auth, db, movielens, movies, pages, tmdb
+from . import auth, browse, db, movielens, movies, pages, tmdb
 
 
 def create_app():
@@ -24,10 +24,12 @@ def create_app():
         return render_template("403.html"), 403
 
     app.register_blueprint(movies.bp)
+    app.register_blueprint(browse.bp)
 
     @app.route("/")
     def index():
-        return render_template("index.html")
+        """Public landing page: Netflix-style movie rows (see recco/browse.py)."""
+        return render_template("index.html", collections=browse.load_collections())
 
     @app.route("/health")
     def health():

@@ -1,5 +1,127 @@
 {% extends "base.html" %}
+{% block title %}Recco - Browse movies{% endblock %}
+{% block body_class %}browse{% endblock %}
+{% block main_class %}browse-main{% endblock %}
+{% block head %}
+<style>
+  body.browse { background: #141414; color: #e5e5e5; }
+  body.browse nav { background: #000; }
+  main.browse-main { max-width: none; margin: 0; padding: 1.5rem 0 1rem; }
+  .hero { padding: 0 3rem 1rem; }
+  .hero h1 { margin: 0 0 .25rem; font-size: 2rem; color: #fff; }
+  .hero p { margin: 0; color: #b3b3b3; }
+
+  .row { margin: 1.75rem 0; }
+  .row-head { padding: 0 3rem; }
+  .row-head h2 { margin: 0; font-size: 1.35rem; color: #fff; }
+  .row-head p { margin: .2rem 0 .6rem; color: #a3a3a3; font-size: .9rem; }
+
+  .carousel { position: relative; }
+  .track {
+    display: flex; gap: .6rem; overflow-x: auto; scroll-behavior: smooth;
+    scroll-snap-type: x mandatory; padding: .4rem 3rem .8rem; scroll-padding: 0 3rem;
+    scrollbar-width: none;
+  }
+  .track::-webkit-scrollbar { display: none; }
+  .card { flex: 0 0 9.5rem; scroll-snap-align: start; transition: transform .15s ease; }
+  .card:hover { transform: scale(1.06); }
+  .poster {
+    width: 100%; aspect-ratio: 2 / 3; border-radius: 4px; overflow: hidden;
+    background: #2a2a2a; display: flex; align-items: center; justify-content: center;
+  }
+  .poster img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .poster .placeholder { padding: .75rem; text-align: center; color: #8c8c8c; font-size: .85rem; }
+  .card .title {
+    margin: .4rem 0 0; font-size: .85rem; color: #e5e5e5; line-height: 1.25;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+  }
+  .card .meta { margin: .1rem 0 0; font-size: .75rem; color: #8c8c8c; }
+
+  .arrow {
+    position: absolute; top: .4rem; bottom: .8rem; width: 2.6rem; border: 0; z-index: 2;
+    background: rgba(20, 20, 20, .7); color: #fff; font-size: 2rem; cursor: pointer;
+    opacity: 0; transition: opacity .15s ease;
+  }
+  .arrow.prev { left: 0; }
+  .arrow.next { right: 0; }
+  .carousel:hover .arrow, .arrow:focus-visible { opacity: 1; }
+  .arrow[disabled] { visibility: hidden; }
+
+  .empty { padding: 0 3rem; color: #b3b3b3; }
+  .attribution { padding: 1.5rem 3rem 0; color: #737373; font-size: .75rem; }
+
+  @media (max-width: 600px) {
+    .hero, .row-head, .empty, .attribution { padding-left: 1rem; padding-right: 1rem; }
+    .track { padding-left: 1rem; padding-right: 1rem; scroll-padding: 0 1rem; }
+    .card { flex-basis: 7.5rem; }
+    .arrow { display: none; }
+  }
+</style>
+{% endblock %}
+
 {% block content %}
-  <h1>Recco</h1>
-  <p>Environment is up. Check <a href="/health">/health</a> for the DB connection.</p>
+  <section class="hero">
+    <h1>Find your next movie</h1>
+    <p>Browse curated rows of movies rated by the Recco community.
+      {% if not current_user %}<a href="{{ url_for('auth.register') }}" style="color:#fff">Sign up</a> to get personal recommendations.{% endif %}</p>
+  </section>
+
+  {% for row in collections %}
+    <section class="row" aria-labelledby="row-{{ row.key }}">
+      <div class="row-head">
+        <h2 id="row-{{ row.key }}">{{ row.title }}</h2>
+        <p>{{ row.description }}</p>
+      </div>
+      <div class="carousel">
+        <button class="arrow prev" type="button" aria-label="Scroll {{ row.title }} left" disabled>&#8249;</button>
+        <div class="track">
+          {% for m in row.movies %}
+            <article class="card">
+              <div class="poster">
+                {% if m.poster_url %}
+                  <img src="{{ m.poster_url }}" alt="{{ m.title }} poster" loading="lazy">
+                {% else %}
+                  <span class="placeholder">{{ m.title }}</span>
+                {% endif %}
+              </div>
+              <p class="title">{{ m.title }}</p>
+              <p class="meta">{{ m.release_year or '' }}{% if m.avg_score is not none %} &middot; &#9733; {{ '%.1f' | format(m.avg_score) }}{% endif %}</p>
+            </article>
+          {% endfor %}
+        </div>
+        <button class="arrow next" type="button" aria-label="Scroll {{ row.title }} right">&#8250;</button>
+      </div>
+    </section>
+  {% else %}
+    <p class="empty">No movies yet. Start the loader to import MovieLens.</p>
+  {% endfor %}
+
+  <p class="attribution">This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+
+  <script>
+    // Arrow buttons scroll one "page" of posters; hide an arrow at either end.
+    document.querySelectorAll(".carousel").forEach(function (carousel) {
+      var track = carousel.querySelector(".track");
+      var prev = carousel.querySelector(".prev");
+      var next = carousel.querySelector(".next");
+      function update() {
+        prev.disabled = track.scrollLeft <= 1;
+        next.disabled = track.scrollLeft + track.clientWidth >= track.scrollWidth - 1;
+      }
+      prev.addEventListener("click", function () { track.scrollBy({ left: -track.clientWidth * 0.9 }); });
+      next.addEventListener("click", function () { track.scrollBy({ left: track.clientWidth * 0.9 }); });
+      track.addEventListener("scroll", update, { passive: true });
+      window.addEventListener("resize", update);
+      update();
+    });
+    // A poster URL that no longer resolves falls back to the title placeholder.
+    document.querySelectorAll(".poster img").forEach(function (img) {
+      img.addEventListener("error", function () {
+        var span = document.createElement("span");
+        span.className = "placeholder";
+        span.textContent = img.alt.replace(/ poster$/, "");
+        img.replaceWith(span);
+      });
+    });
+  </script>
 {% endblock %}
